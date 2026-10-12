@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Propulsion Design Unit Tests</title>
+<style>
+:root{--bg:#fff;--fg:#222;--muted:#666;--line:#ccc;--th:#f3f3f3;--code:#f3f3f3;--open:#fafafa;--accent:#0b5cad;--fail:#b3261e;--pass:#1b7f3b}
+@media(prefers-color-scheme:dark){:root{--bg:#181818;--fg:#ddd;--muted:#999;--line:#444;--th:#2a2a2a;--code:#2a2a2a;--open:#202020;--accent:#6aa9ff;--fail:#ff8a80;--pass:#7bd88f}}
+body{font-family:system-ui,Segoe UI,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.55;color:var(--fg);background:var(--bg)}
+a{color:var(--accent)}
+h1{margin-bottom:.3rem}
+table{border-collapse:collapse;margin:1rem 0;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:.35rem .6rem;vertical-align:top}th{background:var(--th);text-align:left}
+code{background:var(--code);padding:0 .25em;border-radius:3px;font-size:.92em}
+pre{background:var(--code);padding:.6rem .8rem;border-radius:6px;overflow-x:auto}pre code{padding:0}
+details.sec{border:1px solid var(--line);border-radius:8px;margin:.8rem 0;padding:.2rem 1rem}
+details.sec[open]{background:var(--open)}
+details.sec>summary{cursor:pointer;list-style:none}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary h2{display:inline-block;margin:.5rem 0}
+details.sec>summary h2::before{content:"\25B8  ";color:var(--muted)}
+details.sec[open]>summary h2::before{content:"\25BE  "}
+#toc{border:1px solid var(--line);border-radius:8px;padding:.5rem 1rem;margin:1rem 0}
+#toc ol{margin:.3rem 0}
+.bar{display:flex;gap:.5rem;margin:.5rem 0}
+.bar button{font:inherit;padding:.25rem .7rem;border:1px solid var(--line);border-radius:6px;background:var(--th);color:var(--fg);cursor:pointer}
+strong.fail,td.fail{color:var(--fail);font-weight:600}td.pass{color:var(--pass)}
+@media print{details.sec{border:none;padding:0}.bar,#toc{display:none}}
+</style></head><body>
+<div id="out">Loading…</div>
+<script id="md" type="text/plain">
+# New unit tests for `propulsion_design`
+
+This document describes the unit tests added to the `test_propulsion_design` executable. For each test it gives:
+
+- the functional requirement (FR) it verifies, as numbered in [FUNCTIONAL_REQUIREMENTS.html](FUNCTIONAL_REQUIREMENTS.html);
+- the functionality under test;
+- how the test works (setup, action, check) and where its expected values come from.
+
+No production code was changed for these tests. Only test files, two shared test helpers and `test/CMakeLists.txt` were added or changed.
+
+---
+
+## 1. Summary
+
+| Test file | Test suite(s) | Tests | FR | Result |
+|---|---|---|---|---|
+| [test/report/test_report_data.cpp](test/report/test_report_data.cpp) | `BucketCurve` | 13 | FR-10.2, FR-10.3 | 13 pass |
+| [test/engine_design/test_engine_design.cpp](test/engine_design/test_engine_design.cpp) | `ScaleDeckDataValues` | 7 | FR-4.8 | 7 pass |
+| | `ScaleDeckDataValuesDeckFile` | 2 | FR-4.8 | 2 pass |
+| | `RubberEfficiencyFactor` | 11 | FR-4.8, FR-4.9 | 9 pass, **2 fail** (defect, see §9) |
+| [test/mass/default/test_default_openrotorfan.cpp](test/mass/default/test_default_openrotorfan.cpp) | `OpenrotorfanDefaultMass` | 11 | FR-8.1 – FR-8.4 | 11 pass |
+| | `OpenrotorfanMassAnalyzer` | 6 | FR-8.1 – FR-8.6, FR-8.8 | 6 pass |
+| [test/nacelle/default/test_default_profile_file.cpp](test/nacelle/default/test_default_profile_file.cpp) | `NacelleProfileFile` | 6 | FR-5.1, FR-5.2 | 6 pass |
+| [test/pylon/default/test_default_profile_file.cpp](test/pylon/default/test_default_profile_file.cpp) | `PylonProfileFile` | 6 | FR-7.3 | 6 pass |
+| [test/engine_design/rubber/test_rubber_turbofan.cpp](test/engine_design/rubber/test_rubber_turbofan.cpp) | `EngineDesignRubber` (2 new tests) | 2 | FR-4.1 | 2 pass |
+| **Total** | | **64** | | **62 pass, 2 fail** |
+
+**Whole test executable:**
+
+| | Tests | Passed | Failed |
+|---|---|---|---|
+| Before | 54 | 42 | 12 |
+| After the new tests | 118 | 104 | 14 |
+| After revising existing tests (§10) | 120 | 107 | 13 |
+
+After the new tests, the 14 failures were the 12 pre-existing ones plus the 2 new `RubberEfficiencyFactor` tests that expose a defect (§9.1). None of the new tests broke an existing one. Revising four failing areas of the existing suite (§10) then brought the executable to 120 tests, 107 passing and 13 failing.
+
+The two failing tests are kept in the normal run on purpose: they describe what the requirement asks for and fail because of a likely production defect. They are not filtered out to show a green suite.
+
+### 1.1 Requirement → test map
+
+| FR | Functionality | Tests |
+|---|---|---|
+| FR-4.1 | Engine model selection; error for a database without engines | `EngineDesignRubber.DesignTurbofanKeroseneEmptyDatabase`, `DesignTurbofanKeroseneDatabaseWithoutEngineFolders` |
+| FR-4.8 | Engine-efficiency technology factor: deck scaling | `ScaleDeckDataValues.*` (7), `ScaleDeckDataValuesDeckFile.*` (2) |
+| FR-4.8 / FR-4.9 | Factor applied by `Rubber::initialize()` / `Rubber::save()` | `RubberEfficiencyFactor.*` (11) |
+| FR-5.1 | Unsupported nacelle shape rejected | `NacelleProfileFile.UnsupportedProfileThrows` |
+| FR-5.2 | Default nacelle shape file is created when missing | `NacelleProfileFile.*` (5) |
+| FR-7.3 | Default pylon section profile is created when missing | `PylonProfileFile.*` (6) |
+| FR-8.1 | Engine mass (open rotor) | `OpenrotorfanDefaultMass.EngineMass*`, `OpenrotorfanMassAnalyzer.*` |
+| FR-8.2 | Engine CG and inertia (open rotor) | `OpenrotorfanDefaultMass.EngineCG`, `EngineInertia*`, `OpenrotorfanMassAnalyzer.WithoutPylon`, `PresetEngineMassIsKept` |
+| FR-8.3 | Nacelle mass and CG (open rotor) | `OpenrotorfanDefaultMass.NacelleMass`, `NacelleCGFollowsSurface`, `NacelleCGFollowsRotation`, `OpenrotorfanMassAnalyzer.*` |
+| FR-8.4 | Pylon mass and CG (open rotor) | `OpenrotorfanDefaultMass.PylonMass`, `PylonCGFollowsSurface`, `OpenrotorfanMassAnalyzer.WithPylon` |
+| FR-8.5 | Mass from engine design kept; regression only as fallback | `OpenrotorfanMassAnalyzer.PresetEngineMassIsKept` |
+| FR-8.6 | Combination of the point masses | `OpenrotorfanMassAnalyzer.TotalMassCombinesComponents` |
+| FR-8.8 | Mass technology factors read from the configuration | `OpenrotorfanMassAnalyzer.TechnologyFactorsFromConfiguration` |
+| FR-10.2 | Report data: summation of bucket curves | `BucketCurve.AdditionIsElementWise`, `PlusAssign*`, `AccumulateFromDefaultCurve`, `DefaultSize`, `ConstructorAndSetters` |
+| FR-10.3 | Bucket point of a curve | `BucketCurve.Tsfc*`, `BucketPoint*`, `ConstBucketPointMatches`, `UpdateBucketPoint` |
+
+---
+
+## 2. Building and running
+
+From `aircraft_design`:
+
+```bash
+cmake --build build --config Debug --target test_propulsion_design
+cd build/propulsion_design/test
+./Debug/test_propulsion_design.exe                       # all tests
+./Debug/test_propulsion_design.exe --gtest_filter=BucketCurve.*
+```
+
+- **Working directory:** run from `build/propulsion_design/test`. The energy-carrier database is found by searching upwards from the current directory, and the build copies it to `build/propulsion_design/test/databases/general_data/`.
+- **Filters for the new suites:**
+
+| Suites | Filter |
+|---|---|
+| Bucket curve | `BucketCurve.*` |
+| Deck scaling | `ScaleDeckDataValues*` |
+| Rubber adjustment | `RubberEfficiencyFactor.*` |
+| Open-rotor mass | `Openrotorfan*` |
+| Profile files | `*ProfileFile.*` |
+| Database without engines | `EngineDesignRubber.*Database*` |
+
+### 2.1 Changes to `test/CMakeLists.txt`
+
+- **New test files added to `add_executable(test_propulsion_design …)`:**
+  - `engine_design/test_engine_design.cpp`
+  - `nacelle/default/test_default_profile_file.cpp`
+  - `pylon/default/test_default_profile_file.cpp`
+  - `mass/default/test_default_openrotorfan.cpp`
+  - `report/test_report_data.cpp`
+- **Existing test files changed:**
+  - `engine_design/rubber/test_rubber_turbofan.cpp`: two new tests (§6);
+  - `pylon/default/test_default_turbofan.cpp`: the `PylonDefault` fixture now takes its geometry from `pylon_test_geometry.h` (§2.2); its tests are unchanged.
+- **One more source excluded from the module sources** compiled into the test:
+
+  ```cmake
+  list(FILTER UNIT_SOURCES EXCLUDE REGEX ".*\/mass\/default\/openrotorfan\.cpp")
+  ```
+
+  The open-rotor mass helper functions are only defined in that `.cpp`, not declared in a header. The new test `#include`s the `.cpp` directly, exactly like the existing turbofan mass test does with `mass/default/turbofan.cpp`. Excluding it from `UNIT_SOURCES` keeps it from being compiled twice. The pattern names the full path because four other files are also called `openrotorfan.cpp`.
+
+### 2.2 Shared helpers
+
+**[test/temp_directory.h](test/temp_directory.h)**
+
+`UniqueTempDirectory` creates a new, empty folder in the system temp directory, named `<prefix>_<random 64-bit number>`. It deletes the folder in its destructor, including when an assertion fails.
+
+Every test that writes files uses it:
+- the Rubber tests;
+- the deck round-trip test;
+- the profile-file tests;
+- the empty-database test.
+
+This means:
+- no test writes into the repository (`test/stubs/` stays unchanged);
+- parallel or repeated runs cannot collide on a fixed folder name;
+- nothing is left behind in the temp folder.
+
+**[test/pylon/default/pylon_test_geometry.h](test/pylon/default/pylon_test_geometry.h)**
+
+`PylonTestGeometry` builds the aircraft geometry of the pylon tests once: a unit-diameter nacelle (also used as fuselage) and a symmetric wing with chord 2.0 at the root and 1.0 at z = −5. Both `PylonDefault` and `PylonProfileFile` derive from it, so the two fixtures cannot drift apart.
+
+---
+
+## 3. FR-10.2 / FR-10.3 — Bucket curve (`BucketCurve`, 13 tests)
+
+**File:** [test/report/test_report_data.cpp](test/report/test_report_data.cpp)
+
+**Unit under test:** `report::BucketCurve` in [src/report/report_data.h](src/report/report_data.h) / [.cpp](src/report/report_data.cpp).
+
+**Behaviour under test:**
+- A curve holds two arrays, thrust and fuel flow.
+- `tsfc()` is fuel flow / thrust, element by element.
+- `bucket_point()` is the thrust and TSFC at the smallest TSFC (`std::min_element`).
+  - The non-const overload caches the result.
+  - The const overload computes it if nothing is cached.
+- `operator+` and `operator+=` add both arrays element by element; `+=` also clears the cached point.
+- `report::generate_data()` uses `+=` to sum the per-engine curves into the aircraft totals.
+
+**How the tests work:** each test builds curves from small arrays whose TSFC values can be checked by hand, calls one operation, and compares with `EXPECT_NEAR` (tolerance 1e-12). No files or configuration are needed.
+
+| Test | FR | Input | Check |
+|---|---|---|---|
+| `DefaultSize` | 10.2 | `BucketCurve{}` | Thrust and fuel-flow arrays have `report::bucket_points` (100) entries. |
+| `ConstructorAndSetters` | 10.2 | Constructor `{100, 200}/{1, 3}`, then `set_thrust({10, 20, 30})`, `set_fuel_flow({0.1, 0.2, 0.3})` | The arrays hold exactly the given values. |
+| `TsfcIsFuelFlowOverThrust` | 10.3 | Thrust `{100, 200, 400}`, fuel flow `{1, 1, 2}` | `tsfc() = {0.01, 0.005, 0.005}`. |
+| `BucketPointAtMinimumTsfc` | 10.3 | `{100, 200, 300}/{2, 1, 3}` → TSFC 0.02, 0.005, 0.01 | Bucket point = (200, 0.005). |
+| `BucketPointAtCurveEnds` | 10.3 | Minimum at index 0 (`{0.5, 2, 3}`) and at the last index (`{2, 3, 0.3}`) | Thrust 100 and 300; the search covers both ends. |
+| `BucketPointTieTakesFirst` | 10.3 | TSFC 0.01, 0.005, 0.005 | The first minimum is returned (thrust 200). |
+| `ConstBucketPointMatches` | 10.3 | Same curve through a `const&` before caching, the non-const overload (caches), and `const&` after caching | All three give the same point. |
+| `UpdateBucketPoint` | 10.3 | `update_bucket_point()`, then the const overload | (200, 0.005). |
+| `AdditionIsElementWise` | 10.2 | `{100, 200, 300}/{2, 1, 3}` + `{50, 100, 150}/{0.5, 1.5, 0.5}` | Sum = `{150, 300, 450}/{2.5, 2.5, 3.5}`; both operands unchanged. |
+| `BucketPointOfSumUsesSummedCurve` | 10.2/10.3 | Operand minima at index 1 and index 2; sum TSFC 0.0125, 0.01, 0.00775 | Sum bucket point = (400, 3.1/400): taken from the summed curve, not by adding the two bucket points. |
+| `PlusAssignMatchesPlus` | 10.2 | `a += b` vs `a + b` | Identical arrays. |
+| `PlusAssignInvalidatesCachedBucketPoint` | 10.2/10.3 | Cache bucket point (200), then `+=` a curve that moves the minimum | Both overloads now return 400: `+=` cleared the cache. |
+| `AccumulateFromDefaultCurve` | 10.2 | Default (all-zero, 100-point) curve, then `+=` the same 100-point engine curve twice (thrust 1000 + 10i, fuel flow 0.02 + 0.0001i) | Total = 2 × engine arrays; total TSFC = engine TSFC. This is how `generate_data()` builds the totals. |
+
+**Not tested, on purpose:**
+- **Zero thrust:** division by zero gives `inf`/`NaN`, and `min_element` has no defined result. A default curve is all zeros, so `bucket_point()` on an unfilled curve falls into this case.
+- **Arrays of different length:** `std::valarray` arithmetic on mismatched sizes is undefined behaviour.
+
+---
+
+## 4. FR-4.8 — Deck scaling by the engine-efficiency factor
+
+**File:** [test/engine_design/test_engine_design.cpp](test/engine_design/test_engine_design.cpp)
+
+### 4.1 `ScaleDeckDataValues` (7 tests)
+
+**Unit under test:** `design::EngineDesigner::scale_deck_data_values(DeckData&, double f)` ([src/engine_design/engine_design.cpp](src/engine_design/engine_design.cpp)).
+- It multiplies every deck value by **1 + (1 − f) = 2 − f**.
+- It leaves the placeholder `-9999` unchanged.
+- It modifies the deck passed in **and** returns a copy.
+
+**Fixture:**
+- **Designer:** `design::EngineDesigner{nullptr, {}, {}}`. The constructor only stores its arguments, so no configuration or files are needed.
+- **Deck:** a hand-made 2 × 2 × 2 `DeckData`:
+  - N = {0.8, 1.0}, FL = {0, 10000}, Mach = {0, 0.8};
+  - values 100, 200, −9999, 50 / 0, −9999, 1.5, 400, defined once in the table `INPUT` and copied into the deck in `SetUp()`.
+  - Three dimensions are used so that a loop that skipped an index would be caught.
+- **Check:** the helper `expect_scaled()` compares every cell with `INPUT × factor` (or −9999) within 1e-9. Some tests also check results as literal numbers (90, 180, 440), as checks that do not depend on the table.
+
+| Test | Input | Check |
+|---|---|---|
+| `FactorAboveOneReducesValues` | f = 1.1 | 100 → 90, 200 → 180, −9999 kept; all cells × 0.9. |
+| `FactorOneLeavesValuesUnchanged` | f = 1.0 | All cells unchanged. |
+| `FactorBelowOneIncreasesValues` | f = 0.9 | 400 → 440; all cells × 1.1. |
+| `PlaceholderNeverScaled` | f = 0.5, 0.9, 1.0, 1.1, 1.5 | Both −9999 cells stay exactly −9999. |
+| `ModifiesInputInPlace` | f = 1.1 | The deck passed in is scaled as well, and equals the returned copy. This pins down the side effect; a change to that behaviour would make the test fail. |
+| `MetadataUnchanged` | f = 1.1 | Name, N, FL, Mach and the 2 × 2 × 2 shape are unchanged. |
+| `EmptyDeck` | Default `DeckData` | No error; the result is empty. |
+
+### 4.2 `ScaleDeckDataValuesDeckFile` (2 tests)
+
+These repeat the check on a deck file instead of a hand-made table.
+- **File used:** `test/stubs/engines/test-engine/test-engine_WF.csv`, the fuel-flow deck of the test-engine stub (not a production engine), in the engine-database CSV format with 1976 `-9999` cells.
+- **Reader:** it is loaded with the module's own `DeckData::from_csv()`.
+
+| Test | How it works | Check |
+|---|---|---|
+| `ScalesEveryValueOfDeckFile` | Load the deck twice (original and working copy), scale the copy with f = 1.1. | Every cell: −9999 unchanged, otherwise 0.9 × original (relative 1e-12). The file must contain both kinds of cell, so both branches run. |
+| `WriteAndReadBackScaledDeck` | Scale, write with `EngineDesigner::write_deck_value()`, read back with `from_csv()`. | The deck keeps its file name `test-engine_WF`, and the written file is literally `<temp>/test-engine/test-engine_WF.csv`, i.e. the original WF file is overwritten (what `Rubber` relies on). N, FL and Mach identical; every value within relative 1e-5. `write_deck_value()` writes with the default stream precision of 6 significant digits, so each save rounds the values (§9.2). |
+
+---
+
+## 5. FR-4.8 / FR-4.9 — Factor applied by `Rubber` (`RubberEfficiencyFactor`, 11 tests)
+
+**File:** [test/engine_design/test_engine_design.cpp](test/engine_design/test_engine_design.cpp)
+
+**Unit under test:** `design::Rubber::initialize()` and `design::Rubber::save()` ([src/engine_design/rubber/rubber_design.cpp](src/engine_design/rubber/rubber_design.cpp)).
+
+**What the code does:**
+- `initialize()` adjusts every preselected engine that already exists in the project engine folder.
+- `save()` copies every designed engine that is not yet in the project from the database, then adjusts the copy.
+- An adjustment happens when the factor stored in the engine XML (`EngineTechnologyFactor`, f_old) differs from the configured factor `technology_factors/engine_efficiency` (f) by more than 1e-6. It then:
+  1. sets the designer's factor to f_new = 2 − (2 − f)/(2 − f_old);
+  2. scales the WF deck by 2 − f_new = (2 − f)/(2 − f_old) and overwrites `<model>_WF.csv`;
+  3. writes f into the engine XML.
+
+**Requirement checked by the tests:** after adjustment the WF deck equals **base deck × (2 − f)** and the XML stores **f**, whatever f_old was. Here "base deck" means the unadjusted deck.
+
+**Fixture:**
+- **Folders:** a unique temp folder with a `project/` (project engine folder) and a `database/` (engine database).
+- **Configuration:** the module configuration (`CMAKE_TEST_CONFIG_FILE`) with Default model `test-engine` and `path_engine_database` = `database/`. The configured factor f is set per test.
+- **`make_engine(folder, model, f_old)`** builds a consistent "previously adjusted" engine:
+  - copies the stub `test-engine.xml` as `<model>.xml`;
+  - adds `EngineTechnologyFactor = f_old` (the stub XML has no such node; without it, `Rubber` hits an error and calls `exit()`, which would stop the whole test program);
+  - writes `<model>_WF.csv` = stub deck × (2 − f_old), written by the test at full precision, not by the code under test. `write_deck()` asserts that the file was opened and written.
+  - `make_engine()` contains fatal assertions. A fatal assertion in a helper only returns from the helper, so every call is wrapped as `ASSERT_NO_FATAL_FAILURE(make_engine(...))`; a broken fixture then stops the test instead of producing follow-on errors.
+- **`add_marker()` / `has_marker()`** add and look for a `TestMarker` node in an engine XML (used to detect that a project engine was replaced).
+- **`expect_deck(folder, model, factor)`** reads the WF deck back and requires every cell to equal base × factor (−9999 unchanged, relative 1e-5). It reports the first 3 mismatches with the actual ratio to the base deck.
+  - It contains a fatal assertion on the deck size, so every call is wrapped as `ASSERT_NO_FATAL_FAILURE(expect_deck(...))`: a deck of the wrong size stops the test.
+  - Wrong values are reported with the non-fatal `ADD_FAILURE`, so they do not stop the test. A test that checks two engines (A and B) therefore still reports both.
+- **`stored_factor(folder, model)`** reads `EngineTechnologyFactor` back from the XML on disk.
+- **Tolerances** allow for the configured factor being read as `float` and the deck being written with 6 significant digits.
+
+| Test | Setup | Action | Check | Result |
+|---|---|---|---|---|
+| `InitializeReadjustsPreviouslyAdjustedEngine` | Project engine, f_old = 1.05; f = 1.1 | `initialize()` | Deck = base × 0.9; XML = 1.1; designer factor = 2 − 0.9/0.95 | pass |
+| `InitializeSameFactorLeavesEngineUnchanged` | f_old = f = 1.05 | `initialize()` | Deck = base × 0.95 (unchanged); XML = 1.05 | pass |
+| `InitializeTwiceScalesOnce` | f_old = 1.05; f = 1.1 | `initialize()` on two designers in a row | Deck = base × 0.9, not scaled twice; XML = 1.1 | pass |
+| `InitializeDoesNotTouchDatabase` | Engine only in the database (f_old = 1.0); f = 1.1 | `initialize()` | Database deck and XML unchanged; nothing created in the project | pass |
+| `SaveCopiesAndAdjustsNewEngine` | Engine only in the database (f_old = 1.0); f = 1.1; `add_designed_engine("test-engine")` | `save()` | Engine copied to the project; project deck = base × 0.9, project XML = 1.1; database deck and XML unchanged | pass |
+| `SaveWithNeutralFactorCopiesUnchanged` | As above, f = 1.0 | `save()` | Project deck = base, XML = 1.0 | pass |
+| `SaveSkipsEngineAlreadyInProject` | Engine in database (1.0) and project (1.1); marker node added to the project XML; f = 1.1 | `save()` | Marker still present; project engine unchanged (base × 0.9, XML 1.1). The marker is needed because a re-copy from the database followed by a re-adjustment would give the same deck and factor. | pass |
+| `InitializeFactorWithinThresholdNotAdjusted` | f_old = 1.05; f = 1.05 + 4×10⁻⁷ (about 4×10⁻⁷ apart also after the float conversion) | `initialize()` | Deck file text unchanged (not rewritten); XML still exactly 1.05 | pass |
+| `InitializeFactorOutsideThresholdAdjusted` | f_old = 1.05; f = 1.05 + 4×10⁻⁶ | `initialize()` | Deck file rewritten (its text changes, because `Rubber` writes its own format); deck = base × (2 − f); XML = f within 2×10⁻⁷ and more than 2×10⁻⁶ away from 1.05 | pass |
+| `InitializeAdjustsEachOverriddenModelOnce` | Default model A = `test-engine`, override for propulsor ID 1 with model B = `test-engine-b`; both in the project with f_old = 1.05; f = 1.1 | `initialize()` | Requirement: A and B each = base × 0.9, both XML = 1.1 | **fail** (§9.1) |
+| `SaveAdjustsCopiedOverrideModel` | A and B in the database (1.0); override ID 1 → B; only B designed; f = 1.1 | `save()` | Requirement: `save()` does not throw (`ASSERT_NO_THROW`, so the test stops at an exception); then project B = base × 0.9, XML = 1.1 | **fail** (§9.1): `save()` throws, the test stops there |
+
+The two threshold tests use values well inside and well outside the 1e-6 threshold, because the configured factor is read as `float` (resolution about 1.2×10⁻⁷ near 1.05). The engine XML stores doubles with 10 significant digits, so the stored factor shows the difference. The deck values differ by only 4×10⁻⁶ relative, which is below the deck tolerance; the rewrite is therefore detected through the file text.
+
+`add_designed_engine()` is public, so `save()` is tested directly without running a full engine sizing. A full sizing is not possible with the stub engine, which lacks `test-engine_St2_W.csv`.
+
+---
+
+## 6. FR-4.1 — Engine database without engines (2 tests)
+
+**File:** [test/engine_design/rubber/test_rubber_turbofan.cpp](test/engine_design/rubber/test_rubber_turbofan.cpp), next to `DesignTurbofanKeroseneAutomaticallySelected`.
+
+**Unit under test:** the automatic engine selection in `design::Rubber`. When no model is preselected, `Rubber::operator()(Turbofan&)` calls `Rubber::select_engine()`. That function lists the folders in the database and throws `std::runtime_error("No engine found in the database")` if there are none.
+
+**`DesignTurbofanKeroseneEmptyDatabase`:**
+1. Load the module configuration and delete `propulsion@Default/Rubber/engine_model`, so there is no preselection (the same technique as the existing auto-selection test).
+2. Set `path_engine_database` to a new, empty `UniqueTempDirectory`.
+3. Create `design::Rubber`, call `initialize()`, and give a kerosene turbofan a required thrust of 110.31 kN.
+4. Call `designer(engine)` inside `try`:
+   - if nothing is thrown, `FAIL()`;
+   - in `catch (std::runtime_error&)`, require the message to contain "No engine found in the database".
+
+**`DesignTurbofanKeroseneDatabaseWithoutEngineFolders`:** the same steps, but the database folder contains only files: a copy of `test-engine.xml` (not inside an engine folder) and a `README.txt`. `select_engine()` only takes folders as engines, so the result must be the same "No engine found in the database" error.
+
+---
+
+## 7. FR-8.1 – FR-8.6, FR-8.8 — Open-rotor mass
+
+**File:** [test/mass/default/test_default_openrotorfan.cpp](test/mass/default/test_default_openrotorfan.cpp)
+
+**Unit under test:** [src/mass/default/openrotorfan.cpp](src/mass/default/openrotorfan.cpp). This file was not executed by any test before. It contains:
+- the free functions `calculate_*_openrotor` (engine, nacelle, pylon: mass, CG, inertia);
+- `mass::Default::operator()(Openrotorfan<Kerosene>&)`.
+
+**Formulas (from the source; expected values are calculated by hand from them):**
+
+| Quantity | Formula |
+|---|---|
+| Engine mass | m_e = f_m (0.0159 T + 306.57) × 1.2 |
+| Nacelle mass | m_n = f_n (0.0039 T + 595.42) |
+| Pylon mass | m_p = f_p (0.0024 T + 233.29) × 1.5 |
+| Engine CG | (L/2, 0, 0) |
+| Engine inertia (solid cylinder) | r = (h + w)/4; I_xx = m r²/2; I_yy = I_zz = m (3r² + L²)/12; products of inertia 0 |
+| Nacelle and pylon CG | Centroid of the surface, transformed to the parent frame |
+| Nacelle and pylon inertia | Surface inertia from the geometry library |
+
+### 7.1 Layer 1: formulas with hand-calculated values (`OpenrotorfanDefaultMass`)
+
+| Test | FR | Input | Expected (hand calculation) |
+|---|---|---|---|
+| `EngineMass` | 8.1 | T = 1000 N, f_m = 1 | (15.9 + 306.57) × 1.2 = **386.964 kg** |
+| `EngineMassTechnologyFactor` | 8.1 | T = 1000 N, f_m = 0.8 | 0.8 × 386.964 = **309.5712 kg** (proves the factor is applied) |
+| `EngineMassZeroThrust` | 8.1 | T = 0 | 306.57 × 1.2 |
+| `EngineCG` | 8.2 | L = 4 m; L = 3 m | (2, 0, 0); (1.5, 0, 0) |
+| `EngineInertia` | 8.2 | h = w = 2 m, L = 4 m, m = 12 kg | r = 1 → **diag(6, 19, 19)**, off-diagonals 0 |
+| `EngineInertiaNonCircular` | 8.2 | h = 2, w = 4 (r = 1.5), L = 3, m = 8 | I_xx = 9, I_yy = I_zz = 10.5, off-diagonals 0 |
+| `NacelleMass` | 8.3 | T = 1000 N, f_n = 1 / 0.8 | **599.32 kg** / 479.456 kg |
+| `PylonMass` | 8.4 | T = 1000 N, f_p = 1 / 0.8 | (2.4 + 233.29) × 1.5 = **353.535 kg** / 282.828 kg |
+
+Tolerance: 1e-9.
+
+### 7.2 Layer 2: CG from geometry
+
+These use the nacelle and pylon surfaces of the existing turbofan mass tests.
+
+| Test | FR | How it works | Check |
+|---|---|---|---|
+| `NacelleCGFollowsSurface` | 8.3 | CG of the square-section nacelle, then the surface origin moved to (1, 2, 3) | CG = (0, 1, 2); after the move it is (1, 3, 5), i.e. it moved by exactly the origin shift |
+| `NacelleCGFollowsRotation` | 8.3 | Nacelle normal (1, 0, 0) and `rotation_z` = −1.5708 (−90°), as in the turbofan nacelle test | CG = (2, 1, 0) (±1e-4) |
+| `PylonCGFollowsSurface` | 8.4 | Same for the pylon surface | CG = (0.75, 0, −2); after the move (1.75, 2, 1) |
+
+### 7.3 Layer 3: the mass analyzer (`OpenrotorfanMassAnalyzer`)
+
+**Fixture:**
+- **Engine:** `Openrotorfan<Kerosene>` with T = 1000 N, dimensions h = w = 2 m, L = 4 m, and the test nacelle.
+- **Configuration:** the module configuration with all three mass technology factors set explicitly.
+- **`analyze()`:** creates `mass::Default`, calls `initialize()` (reads the factors) and runs the analyzer on the engine.
+
+| Test | FR | Setup | Check |
+|---|---|---|---|
+| `WithoutPylon` | 8.1–8.3 | No pylon surface, factors 1 | Engine 386.964 kg at (2, 0, 0) with cylinder inertia; nacelle 599.32 kg at (0, 1, 2); pylon point mass all zero (mass, CG, inertia). |
+| `WithPylon` | 8.4 | Pylon surface set | Pylon 353.535 kg at (0.75, 0, −2). |
+| `TechnologyFactorsFromConfiguration` | 8.8 | Factors 0.8 / 0.9 / 1.1 in the configuration | Engine 0.8 × 386.964, nacelle 0.9 × 599.32, pylon 1.1 × 353.535. |
+| `TotalMassCombinesComponents` | 8.6 | Pylon surface set, factors 1 | `total_mass()`: mass 386.964 + 599.32 + 353.535 = 1339.819 kg; CG = mass-weighted mean of (2, 0, 0), (0, 1, 2) and (0.75, 0, −2), calculated in the test. |
+| `PresetEngineMassIsKept` | 8.5 | Engine point mass preset to 2000 kg (CG (9, 9, 9), unit inertia) | Mass stays 2000 kg (the regression is only a fallback when the mass is 0); CG recalculated to (2, 0, 0); inertia recalculated with 2000 kg. |
+| `NacelleAndPylonInertiaNotScaledByMass` | 8.3/8.4 | Analyze with factors 1, then with nacelle and pylon factors 0.5 | Nacelle mass halves, but nacelle and pylon inertia are unchanged. Pins down current behaviour (§9.4). |
+
+---
+
+## 8. FR-5.1, FR-5.2 / FR-7.3 — Profile files
+
+**Units under test:**
+- `geometry::nacelle::Default::get_section_shape()` ([src/nacelle/default/default_nacelle.cpp](src/nacelle/default/default_nacelle.cpp), creation branch from line 90);
+- `geometry::pylon::Default::get_section_profile()` ([src/pylon/default/default_pylon.cpp](src/pylon/default/default_pylon.cpp), creation branch from line 307).
+
+If the configured `.dat` file does not exist in the geometry directory, each function:
+1. creates any missing directories;
+2. writes a built-in default profile;
+3. reads it back.
+
+The existing tests always use `test/stubs/`, where both files already exist, so this branch was never executed before.
+
+**Reference data, checked before the tests were written:**
+- **Pylon:** the generated profile is numerically identical to `test/stubs/pylon.dat` (all 202 points).
+- **Nacelle:** the generated profile equals the first 40 points of `test/stubs/nacelle.dat`; the stub only repeats the first point at the end.
+
+So a part designed from a freshly generated file must equal one designed from the stub file. That comparison needs no hard-coded geometry. It is also unaffected by the existing nacelle test's 1.25 vs 1.21 expectation (O-16).
+
+### 8.1 Nacelle (`NacelleProfileFile`, 6 tests)
+
+**File:** [test/nacelle/default/test_default_profile_file.cpp](test/nacelle/default/test_default_profile_file.cpp)
+
+**Fixture:**
+- module configuration (profile `nacelle.dat`);
+- an empty `UniqueTempDirectory` as geometry directory;
+- the turbofan of the existing `LargeFanShortDuct` test (dimensions 1 × 2 × 3 m, fan diameter 2.5 m).
+
+| Test | How it works | Check |
+|---|---|---|
+| `CreatesMissingProfileFile` | Assert the file is absent, design the nacelle; read the created file as plain text. | `nacelle.dat` exists; 40 points; point k = (0.5 cos(9k°), 0.5 sin(9k°)) (±1e-5; the file has 5 decimals), i.e. a circle of diameter 1, in order, counter-clockwise from (0.5, 0); nacelle has sections. |
+| `CreatedProfileGivesSameNacelleAsStub` | Design once with the temp directory (file created) and once with `test/stubs/`. | Both have 4 sections; same name, origin, normal; each section has name `nacelle`, the same origin and the same bounding-box width and height (1e-9). The inlet section is 2.5 m (the fan diameter). |
+| `SecondRunReadsExistingFile` | First run creates the circle (40-point sections). Then the file is replaced by a square; second run. | File still contains the square (not overwritten); every section has 4 vertices and fills its bounding box (area ratio 1, a circle gives about π/4). A different shape is needed: the designer rescales every profile to the required width and height, so a circle of another size would give the same sections. |
+| `CreatesMissingSubdirectory` | Profile set to `profiles/nacelle.dat`. | `profiles/` and the file are created; the nacelle has 4 sections. |
+| `UncreatableProfilePathThrows` | A regular file `blocker` in the geometry directory; profile `blocker/nacelle.dat`. | `std::runtime_error` containing "Error while creating the file for nacelle." |
+| `UnsupportedProfileThrows` (FR-5.1) | Profile `Triangle`. | `std::invalid_argument` containing "The nacelle shape 'triangle' is not supported." (the name is converted to lower case). |
+
+### 8.2 Pylon (`PylonProfileFile`, 6 tests)
+
+**File:** [test/pylon/default/test_default_profile_file.cpp](test/pylon/default/test_default_profile_file.cpp)
+
+**Fixture:**
+- the shared geometry of `pylon_test_geometry.h` and the under-wing engine of the existing `PylonDefault.DesignTurbofanKeroseneUnderWing` test (engine 0.8 × 0.8 × 1.5 m, fan 0.9 m, position (2, 3, −1), right wing, under);
+- module configuration (profile `pylon.dat`);
+- an empty `UniqueTempDirectory` as geometry directory.
+
+| Test | How it works | Check |
+|---|---|---|
+| `CreatesMissingProfileFile` | Assert the file is absent, design the pylon. | `pylon.dat` exists; 202 points from (0, 0) to (1, 0); 2-section pylon, section name `pylon`. |
+| `CreatedProfileMatchesNacaFormula` | Read the created file as plain text, without the geometry library's reader. | Header `#NACA0012`; 202 points; every point checked against the formula below (±1e-7; the file has 8 decimals). |
+| `CreatedProfileGivesSamePylonAsStub` | Design once with the temp directory and once with `test/stubs/`. | Same section count (2), origin, normal; each section has the same name, origin, chord and bounding box (1e-12). |
+| `SecondRunReadsExistingFile` | First run creates the NACA 0012 file (202-point sections). Then the file is replaced by a 4-point diamond with thickness 0.4; second run. | File still contains the diamond; both sections have 4 vertices and a thickness ratio of 0.4 (the chord scaling keeps the ratio; NACA 0012 has 0.12). |
+| `CreatesMissingSubdirectory` | Profile set to `profiles/pylon.dat`. | `profiles/` and the file are created; the pylon has 2 sections. |
+| `UncreatableProfilePathThrows` | A regular file `blocker` in the geometry directory; profile `blocker/pylon.dat`. | `std::runtime_error` containing "Error while creating the file for pylon." |
+
+**Formula used by `CreatedProfileMatchesNacaFormula`** (NACA 4-digit thickness, t = 0.12):
+
+- x_i = ½ (1 − cos(π i / 100)), i = 0 … 100 (cosine spacing)
+- |y| = 5t (0.2969 √x − **0.1281** x − 0.3516 x² + 0.2843 x³ − 0.1015 x⁴)
+
+**File layout:**
+- points 0–100: upper surface (+y) from (0, 0) to (1, 0);
+- points 101–201: lower surface (−y) from (0, 0) to (1, 0).
+
+The coefficients were found by a least-squares fit of all five coefficients to the 99 upper-surface points (residual 1.6 × 10⁻⁸, i.e. the 8-decimal rounding). They differ from the commonly published set (§9.5).
+
+---
+
+## 9. Findings from the new tests
+
+### 9.1 Defect: per-engine model overrides adjust the wrong deck (FR-4.8)
+
+**Shown by:** `RubberEfficiencyFactor.InitializeAdjustsEachOverriddenModelOnce` and `SaveAdjustsCopiedOverrideModel` (both fail).
+
+**Cause:** in both `Rubber::initialize()` and `Rubber::save()`, the deck file name is read from the first `engine_model` entry of the configuration (the Default one), not from the engine being processed ([rubber_design.cpp:67](src/engine_design/rubber/rubber_design.cpp#L67) and [:132](src/engine_design/rubber/rubber_design.cpp#L132)). The engine XML that is read and written does belong to the engine being processed.
+
+**Measured effect** (Default model A, override model B, f = 1.1; f_old = 1.05 for the project engines in the `initialize()` case, 1.0 for the database engines in the `save()` case):
+
+| Path | A deck | B deck | B XML |
+|---|---|---|---|
+| Requirement (both cases) | base × 0.9 | base × 0.9 | 1.1 |
+| `initialize()` | base × 0.8526 = 0.95 × (0.9/0.95)², scaled twice | base × 0.95, not scaled | 1.1, so XML and deck disagree |
+| `save()`, only B designed | — | not adjusted (base × 1.0) | 1.0 |
+
+In the `save()` case it throws `std::runtime_error` "Could not open file: …\project\test-engine\test-engine_WF.csv", because A was never copied to the project. The B values in that row were measured with an earlier version of the test, which carried on after the exception. The current test uses `ASSERT_NO_THROW` and stops at the exception, which is the root cause, so it no longer reports them.
+
+### 9.2 Deck precision on save (FR-4.8)
+
+`EngineDesigner::write_deck_value()` writes values with the default stream precision (6 significant digits). Every adjustment that rewrites a deck rounds it. Seen in `ScaleDeckDataValuesDeckFile.WriteAndReadBackScaledDeck`.
+
+### 9.3 Deck scaling modifies its input (FR-4.8)
+
+`scale_deck_data_values()` takes the deck by non-const reference and scales it in place, as well as returning a copy. Pinned down by `ScaleDeckDataValues.ModifiesInputInPlace`.
+
+### 9.4 Nacelle and pylon inertia are not scaled by mass (FR-8.3 / FR-8.4)
+
+For the open rotor, the nacelle and pylon inertia are the geometry library's surface inertia and do not change with the component mass. Pinned down by `OpenrotorfanMassAnalyzer.NacelleAndPylonInertiaNotScaledByMass`.
+
+### 9.5 Pylon default profile coefficients (FR-7.3)
+
+The generated `pylon.dat` uses **−0.1281** for the linear thickness term:
+- **Commonly published open-trailing-edge set:** −0.1260. The points deviate from it by up to 1.3 × 10⁻³ of the chord.
+- **Other common closed-edge set** (−0.1036 for the x⁴ term): deviation up to 6 × 10⁻⁴.
+
+With −0.1281 the five coefficients sum to 0, so the trailing edge closes at x = 1. The test records the coefficients the module uses; it does not assess the choice.
+
+### 9.6 Test stub and existing tests
+
+- **Missing XML node:** `test/stubs/engines/test-engine/test-engine.xml` has no `EngineTechnologyFactor` node. If `Rubber` tries to adjust it, `set_engine_efficiency_factor()` throws, and `Rubber` catches that and calls `exit(EXIT_FAILURE)`. The new tests therefore add the node to their temporary copies.
+- **Missing deck file:** the stub engine also lacks `test-engine_St2_W.csv`, so a full engine sizing with it fails. This is the cause of 3 of the pre-existing `EngineDesignRubber` failures.
+- **Outdated expectation:** the pre-existing `EngineDesignRubber.ChangeTechnologyFactor` expects `initialize()` to throw. With an empty engine directory no adjustment takes place, so nothing is thrown. `RubberEfficiencyFactor.InitializeDoesNotTouchDatabase` confirms this behaviour.
+
+---
+
+## 10. Revised existing tests
+
+Four failing areas of the existing suite were checked against the current source. They were not fixed by copying the observed output into the tests.
+
+| Test | Finding | Change |
+|---|---|---|
+| `IntegrationDefault.IntegrateTurbofanKeroseneTwoEnginesUnderWing`, `…FourEnginesUnderWing` | Outdated expectations. The "invalid" engine `{Wing, Left, Front, Over}` is now a supported mount; integrating it first also used up a wing slot and shifted the inner/outer order of the following engines. | Over-wing case removed from these tests. Positions rewritten from the current placement rule, derived by hand in the test file (span position per Ata10, local chord, under-wing x = 0.1c − 0.9L, height = −0.5·nacelle height − 0.1c). The four-engine test uses four distinct engine objects (IDs 0–3), integrated right inner, right outer, left inner, left outer, and checks that the first engines keep their positions. A helper `make_wing_engine(id, lateral, vertical)` was added to the fixture. **Now pass.** |
+| new `…TwoEnginesOverWing` | The over-wing mount gets its own test. | x = 3 + 0.75c = 4.1494215, z = 2 + 0.8 = 2.8, y = ±2.33719. The values were derived before the first run and matched. **Passes.** |
+| new `…WingRejectsExtraEngine` | The old tests expected a throw when an engine was integrated again. `integrate_into_wing()` contains the check "No space on the wing", but the slot index it compares is `engines_done.wing` modulo the slots per side, so the check can never trigger: a third engine on a two-engine wing is accepted. Likely source defect (FR-6.7). | Separate test: two engines integrated, then a distinct third engine (ID 2) must be rejected. **Fails on purpose** until the source is fixed. |
+| `IntegrationDefault.IntegrateTurbofanKeroseneTwoEnginesMidFuselage` | Not a stale value. `integrate_into_fuselage()` uses the fuselage-local frame (X width, Y height, Z length) but mirrors a left engine with z → −z, i.e. along the fuselage length: (−1.6, 1.125, 0.25) instead of (1.6, −1.125, 0.25). Suspected source defect (O-28). | Expectation kept; comment added to the test. **Still fails.** |
+| `PylonDefault.DesignTurbofanKeroseneMidFuselage` | The attachment points are parent-specific (`get_fuselage_attachment_points()` for this engine), but the chord sizing and clearance come from the wing also for this fuselage engine (wing MAC, wing trailing-edge cap, "under the wing" decided relative to the wing). No fuselage-pylon sizing rule is defined, so the retained 1.5 m expectations are not a verified correct answer either. Unresolved design/test question, not a confirmed source defect. | Expectation kept; comment added. **Still fails** until a fuselage-pylon sizing rule is agreed. |
+| `EngineDesignRubber.DesignTurbofanKeroseneManuallySelected` | Engine-library commit `2ac1f62` switched the mass-flow deck from `<name>_W25` (core flow) to `<name>_St2_W` (total flow at station 2). The test-engine stub has no `St2_W` deck. Substituting its `W25` (core-flow) deck would be unjustified. The stub shares dimensions and SLST with the database engine V2527-A5, but its dry mass (2404 vs 2858 kg) and its thrust and fuel-flow decks differ, so the V2527-A5 deck cannot simply be copied in. `EXPECT_NEAR(tsfc, 0.0, 1e-3)` accepted any real TSFC (about 1e-5 kg/Ns). | TSFC check replaced by `EXPECT_GT(tsfc, 0.0)`, which only removes the ineffective assertion and does not check TSFC accuracy; the test still fails before reaching it. Options for a usable test: obtain the matching `St2_W` deck; replace the stub by a clearly labelled synthetic, internally consistent engine fixture; or use a complete reference engine such as V2527-A5 with newly derived expectations. **Still fails** (fixture). |
+
+After these changes the whole executable runs **120 tests: 107 pass, 13 fail**:
+- 4 Rubber tests: missing deck file / outdated `ChangeTechnologyFactor` expectation;
+- 2 `RubberEfficiencyFactor` override tests (§9.1);
+- `WingRejectsExtraEngine` (unreachable capacity check);
+- `TwoEnginesMidFuselage` (O-28);
+- `Unsupported` and `NoAircraftGeometry` (O-30);
+- `InvalidAircraftGeometry` (multiple wings do not throw);
+- the nacelle test (1.25 vs 1.21, O-16);
+- the mid-fuselage pylon test.
+
+---
+
+## 11. Limits of the new tests
+
+- **Not production engine data.** The engine data is the repository's `test-engine` stub (real CSV format, but not a production engine), with an added XML node and constructed adjustment histories. The tests verify the logic for any engine in this format, not a specific database engine.
+- **Model selection during sizing is untested.** Per-propulsor model selection during sizing (FR-4.1) needs a complete engine deck. The override tests in §5 cover the FR-4.8 adjustment only.
+- **Not all of FR-10.2 is covered.** `report::generate_data()` and `BucketCurve::from_engine_data()` need a real `Engine` and remain untested.
+- **No full module runs.** The tests call single functions or strategies. FR-1 (lifecycle) is not covered by these tests.
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script>
+const out = document.getElementById('out');
+out.innerHTML = marked.parse(document.getElementById('md').textContent);
+
+/* Give every h2 an id and wrap each h2 section in a collapsible block */
+const toc = [];
+const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+[...out.querySelectorAll('h2')].forEach(h2 => {
+  h2.id = slug(h2.textContent);
+  toc.push([h2.id, h2.textContent]);
+  const details = document.createElement('details');
+  details.className = 'sec';
+  details.open = true;
+  const summary = document.createElement('summary');
+  h2.replaceWith(details);
+  summary.appendChild(h2);
+  details.appendChild(summary);
+  while (details.nextSibling && !(details.nextSibling.tagName === 'H2' || (details.nextSibling.tagName === 'DETAILS' && details.nextSibling.classList.contains('sec')))) {
+    const next = details.nextSibling;
+    if (next.tagName === 'HR') { next.remove(); continue; }
+    details.appendChild(next);
+  }
+});
+
+/* Contents and expand / collapse buttons after the introduction */
+const firstSection = out.querySelector('details.sec');
+const nav = document.createElement('div');
+nav.innerHTML = '<div class="bar"><button id="expand">Expand all</button><button id="collapse">Collapse all</button></div>' +
+  '<nav id="toc"><strong>Contents</strong><ol>' + toc.map(([id, t]) => `<li><a href="#${id}">${t.replace(/^\d+\.\s*/, '')}</a></li>`).join('') + '</ol></nav>';
+out.insertBefore(nav, firstSection);
+document.getElementById('expand').onclick = () => out.querySelectorAll('details.sec').forEach(d => d.open = true);
+document.getElementById('collapse').onclick = () => out.querySelectorAll('details.sec').forEach(d => d.open = false);
+out.querySelectorAll('#toc a').forEach(a => a.addEventListener('click', () => {
+  const target = document.getElementById(a.getAttribute('href').slice(1));
+  if (target) target.closest('details').open = true;
+}));
+
+/* Colour the results: cells that read "pass" / "N pass", and bold "fail" / "N fail" */
+out.querySelectorAll('td').forEach(td => {
+  if (/^(\d+ )?pass$/i.test(td.textContent.trim())) td.classList.add('pass');
+});
+out.querySelectorAll('strong').forEach(s => {
+  if (/^(\d+ )?fail$/i.test(s.textContent.trim())) s.classList.add('fail');
+});
+</script></body></html>
