@@ -27,7 +27,7 @@ code{background:#f3f3f3;padding:0 .25em;border-radius:3px}
 details{border:1px solid #ccc;border-radius:6px;margin:.4rem 0;padding:.3rem .8rem}
 details[open]{background:#fafafa}summary{cursor:pointer}
 @media (max-width: 980px){.review-layout{grid-template-columns:1fr}.feedback-panel{position:static}}
-@media(prefers-color-scheme:dark){body{background:#111827;color:#e5e7eb}:root{--bg:#111827;--panel:#161f2d;--panel-alt:#17263e;--text:#e5e7eb;--muted:#b5bfd2;--border:#2b3b51;--accent:#8ba7ff;--accent-soft:#1d2b47;--shadow:0 18px 45px rgba(0,0,0,.28)}th{background:#2a2a2a}th,td,details{border-color:#444}code{background:#2a2a2a}details[open]{background:#202020}.feedback-panel textarea{background:#111827}} 
+@media(prefers-color-scheme:dark){body{background:#111827;color:#e5e7eb}:root{--bg:#111827;--panel:#161f2d;--panel-alt:#17263e;--text:#e5e7eb;--muted:#b5bfd2;--border:#2b3b51;--accent:#8ba7ff;--accent-soft:#1d2b47;--shadow:0 18px 45px rgba(0,0,0,.28)}th{background:#2a2a2a}th,td,details{border-color:#444}code{background:#2a2a2a}details[open]{background:#202020}.feedback-panel textarea{background:#111827}}
 </style></head><body>
   <div class="review-shell">
     <header class="topbar">
@@ -83,7 +83,7 @@ This document defines the functional requirements of the propulsion design modul
 | **[Ray12]** | Raymer, *Aircraft Design: A Conceptual Approach*, p. 285 (engine scaling). |
 | **[Pet13]** | Regression of LTH engine/nacelle/pylon mass data, cited in `mass/default/turbofan.cpp`. |
 
-Requirements in this document were recovered from the `propulsion_design` source code and verified through a code walkthrough. 
+Requirements in this document were recovered from the `propulsion_design` source code and verified through a code walkthrough.
 ### 0.1 Symbols
 
 | Symbol | Meaning | Unit |
@@ -114,7 +114,7 @@ Requirements in this document were recovered from the `propulsion_design` source
 At the UNICADO system level, the aircraft design process defines propulsion needs through the user-specified propulsion architecture and the required thrust or power and system offtakes supplied by the design loop. These system-level requirements map to the `propulsion_design` module. The module exists to translate those needs into a propulsion design by sizing the engines, designing and integrating the propulsion system with the aircraft, and providing engine and integration outputs for downstream tools.
 
 The functional requirements below describe how the module fulfills its role. They are grouped into functional categories and decomposed into sub-functional requirements. Each sub-functional requirement explains why its behavior is needed, while its **Software requirements** subsection identifies how the software implements that behavior.
-<details>
+<details id="fr-1">
 <summary><b>FR-1 - Module lifecycle and strategy orchestration</b></summary>
 
 **Statement.** The module shall initialize from runtime configuration and the aircraft exchange file, create aircraft geometry and propulsors, validate inputs, and initialize the selected design strategies [FR-1.1](#fr-1-1); select the configured strategy for each design domain [FR-1.2](#fr-1-2); and process each supported propulsor through engine sizing, nacelle design, placement, pylon design and mass analysis in dependency order [FR-1.3](#fr-1-3). After design, it shall update the aircraft exchange file and prepare report data when enabled [FR-1.4](#fr-1-4), generate configured reports and plots [FR-1.5](#fr-1-5), and save the aircraft exchange file and strategy outputs [FR-1.6](#fr-1-6). If execution cannot continue, it shall report the error and return failure [FR-1.7](#fr-1-7). It shall also provide status and diagnostic messages [FR-1.8](#fr-1-8) and support creation from a runtime configuration file without command-line arguments [FR-1.9](#fr-1-9). The module follows the lifecycle `initialize` -> `run` -> `update` -> `report` -> `save`.
@@ -380,95 +380,11 @@ The command-line constructor is used by `main()`. The alternative constructor ac
 
 </details>
 
----
-### FR-2 - Input acquisition and propulsor definition
-
-**FR-2.1** The module shall read aircraft geometry from the aircraft exchange file when available.
-
-**FR-2.2** For each propulsor, the module shall read its ID, powertrain, propulsor type, energy-carrier ID, thrust share, arrangement order, parent component, and position selections from the aircraft propulsion definition.
-
-**FR-2.3** The module shall convert configured position tags to the internal representation and resolve each energy-carrier ID to its definition. **FR-2.4** It shall process propulsors in their configured arrangement order.
-
-**FR-2.5** The module shall read the design flight condition, including Mach number, altitude, and ISA deviation where provided.
-
-**FR-2.6** The module shall read aircraft bleed-air and power demands for engine offtakes. If either is missing, it shall use zero for that demand and issue a warning.
-
-**FR-2.7** The module shall calculate total required thrust from maximum take-off mass and thrust-to-weight ratio, then allocate thrust and system offtakes to propulsors according to their thrust shares.
-
-### FR-3 - Design-consistency validation
-
-**FR-3.1** The module shall require a sizing point containing thrust-to-weight ratio. **FR-3.2** The module shall require aircraft maximum take-off mass.
-
-**FR-3.3** The module shall check configured propulsor thrust shares against the implemented thrust-balance validation. **FR-3.4** It shall validate lateral thrust symmetry where that check is active.
-
-### FR-4 - Engine sizing
-
-**FR-4.1** The module shall select or accept a configured reference engine model for each supported propulsor. **FR-4.2** It shall load the selected engine XML data and performance deck from the configured project engine directory or engine database.
-
-**FR-4.3** The module shall determine the engine scale factor needed to match the propulsor's required sea-level-static take-off thrust. **FR-4.4** It shall scale engine dimensions according to the implemented scaling rules. **FR-4.5** It shall determine scaled dry mass and apply the engine-mass technology factor.
-
-**FR-4.6** Engine performance evaluation shall account for configured bleed-air and shaft-power offtakes through the engine library. **FR-4.7** The module shall determine the engine bucket point at the configured design flight condition. **FR-4.8** It shall apply the configured engine-efficiency technology factor.
-
-**FR-4.9** The module shall register designed engines and save the engine data and deck outputs required by the engine library. **FR-4.10** It shall perform the type-specific sizing checks implemented for each supported engine and energy-carrier combination.
-
-### FR-5 - Nacelle design
-
-**FR-5.1** The module shall select a nacelle shape supported by the selected method. **FR-5.2** It shall create or reuse default nacelle shape data as required. **FR-5.3** It shall determine nacelle inner diameter from the associated engine geometry.
-
-**FR-5.4** The module shall generate nacelle geometry for supported turbofan configurations. **FR-5.5** It shall provide the engine-geometry representation required by integration and mass analysis. **FR-5.6** It shall generate open-rotor nacelle geometry where implemented.
-
-### FR-6 - Propulsion integration and placement
-
-**FR-6.1** The module shall check whether the selected integrator supports the propulsor type and placement. **FR-6.2** It shall select the aircraft geometry component used for integration, including the configured wing where applicable.
-
-**FR-6.3** The module shall calculate placement for supported wing-mounted propulsors. **FR-6.4** It shall calculate placement for supported fuselage-mounted propulsors. **FR-6.5** It shall calculate placement for supported empennage and wing-body configurations.
-
-**FR-6.6** When aircraft geometry is unavailable, the module shall use the implemented fallback placement behavior. **FR-6.7** It shall track placement slots and available space according to the integration method. **FR-6.8** It shall apply configured per-engine position shifts. **FR-6.9** It shall provide positions in the global reference frame for aircraft-level output. **FR-6.10** When enabled and supported, it shall place an engine at the wing kink.
-
-### FR-7 - Pylon design
-
-**FR-7.1** The module shall determine whether a pylon is applicable to the propulsor configuration. **FR-7.2** It shall check that the parent component and placement are supported by the pylon method.
-
-**FR-7.3** The module shall select or generate a pylon section profile. **FR-7.4** It shall determine pylon attachment points from engine, nacelle, and aircraft geometry. **FR-7.5** It shall construct pylon geometry for supported configurations.
-
-### FR-8 - Mass properties
-
-**FR-8.1** The module shall determine engine mass, center of gravity, and inertia. **FR-8.2** It shall determine nacelle mass properties. **FR-8.3** It shall determine pylon mass properties where a pylon is present.
-
-**FR-8.4** The module shall preserve preset engine mass properties for embedded engines where supported. **FR-8.5** It shall combine engine, nacelle, and pylon properties into total propulsion-system mass properties. **FR-8.6** It shall convert reference frames as required for aircraft-level output. **FR-8.7** It shall apply configured mass technology factors to applicable components.
-
-### FR-9 - Aircraft exchange-file output
-
-**FR-9.1** The module shall create or update the propulsion node in the aircraft exchange file. **FR-9.2** It shall write aggregate propulsion data, including total propulsion mass and reference position where supported.
-
-**FR-9.3** For each propulsor, the module shall write available engine model, global position, mass properties, thrust, scale factor, bucket-point adjustments, and nacelle and pylon data. **FR-9.4** It shall preserve the intended propulsor ordering when writing results. **FR-9.5** It shall save the aircraft exchange file at the configured tool level.
-
-### FR-10 - Reporting and plotting
-
-**FR-10.1** The module shall generate an XML report when enabled. **FR-10.2** It shall prepare report data, including bucket-curve data, when reporting is enabled. **FR-10.3** It shall generate bucket-curve plots when plotting is enabled. **FR-10.4** It shall generate configured propulsion geometry plots. **FR-10.5** It shall generate an HTML report when enabled.
-
-### FR-11 - Configuration and technology factors
-
-**FR-11.1** The module shall read the selected method for each design domain and reject methods unsupported by the implementation. **FR-11.2** It shall read the engine database path. **FR-11.3** It shall read the configured wing name used for wing-mounted engines and pylons.
-
-**FR-11.4** The module shall read and apply engine-mass, nacelle-mass, pylon-mass, and engine-efficiency technology factors. **FR-11.5** It shall read per-engine repositioning shifts. **FR-11.6** It shall read per-propulsor engine-model overrides where supported. **FR-11.7** It shall read nacelle and pylon profiles. **FR-11.8** It shall read control settings for tool-level output, console and log output, reports, XML, and plots. **FR-11.9** It shall read the setting controlling placement at the wing kink.
-
-### FR-12 - Engine performance data access
-
-**FR-12.1** The propulsion workflow shall request engine performance data for operating points defined by flight Mach number, altitude, and low-pressure spool speed or power setting. **FR-12.2** The engine library shall provide interpolated data between available deck points. **FR-12.3** The engine library shall apply shaft-power and bleed-air offtake corrections when requested.
-
-### FR-13 - Engine-data scaling
-
-For a scale factor `SF` and exponent `x`, the scaled value shall be `base value × SF^x`.
-
-**FR-13.1** The engine-data scaling process shall use exponent 1 for thrust, fuel flow, LTO fuel flow, mass flow, maximum bleed, and maximum shaft offtake. **FR-13.2** It shall use exponent 0.5 for diameter, 1.1 for weight, and 0.4 for length. **FR-13.3** It shall use exponent 0 for LTO emissions. **FR-13.4** Thrust and fuel flow shall scale equally, leaving TSFC unchanged under this scaling rule.
-
-### FR-14 - Supported propulsion configurations
-
-**FR-14.1** The module shall execute only propulsion configurations supported by the selected strategies. **FR-14.2** It shall reject unsupported propulsor types or energy-carrier combinations with a diagnostic error. **FR-14.3** Diagnostics shall identify the affected propulsor and design stage where the implementation provides that information. Current supported and unsupported combinations are summarized in section 1.1 and detailed in the subsequent FR sections.
+FR-12 and FR-13 describe engine-library dependencies used by this module. FR-14 summarizes the supported-configuration boundary.
 
 ---
-## 2. FR-2 — Input acquisition and propulsor definition
+<details id="fr-2">
+<summary><b>FR-2 — Input acquisition and propulsor definition</b></summary>
 
 **Statement.** The module shall read the aircraft geometry, the propulsor specification, the thrust requirement, the offtake requirements and the design flight condition from the aircraft exchange XML, and turn them into one typed propulsor object per specified propulsor.
 **Src:** `propulsion_design.cpp` (`create_aircraft_geometry`, `create_propulsors`, `get_design_condition`, `sort_propulsors`), `utility.cpp`
@@ -477,7 +393,7 @@ For a scale factor `SF` and exponent `x`, the scaled value shall be `base value 
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-2)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-2)</summary>
 
 <details>
 <summary><code>PropulsionDesign::create_aircraft_geometry()</code></summary>
@@ -571,89 +487,129 @@ Routes a message to the runtime-info stream for level Out / Debug / Info / Warni
 
 </details>
 
-<details>
+<details id="fr-2-1">
 <summary><b>FR-2.1</b> — Aircraft geometry import</summary>
 
 **What it does:** Reads all wing, fuselage and empennage surfaces from `component_design/{wing,fuselage,empennage}/specific/geometry/…`. Builds them with the aircraftGeometry2 factories. Shifts each component origin by its `position` node into the global frame. All lookups are in one `try` block. If a required lookup (wing, fuselage or empennage, including their `position` nodes) throws a `std::string` exception, as `getVector` does when nodes are missing, a warning is printed and the **whole** geometry is set to `nullptr`, even if the other components exist; the module then continues in "no-geometry" mode (placement falls back to the origin, FR-6.6; no pylon, FR-7.1). This fallback does not cover plotting: with `plot_output/enable` = true, `plot::top_overview()` still dereferences the null geometry (⚠ O-22).
 
-**Implemented by (software requirements):** `PropulsionDesign::create_aircraft_geometry()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_aircraft_geometry()`
+
+</details>
 
 **Why it is needed:** Placement, pylon and plots need the geometry of wing, fuselage and tail, and reading it from the aircraft file keeps the engines consistent with the airframe. A defined fallback exists for the case that no geometry is available yet (FR-6.6, FR-7.1).
 
 </details>
 
-<details>
+<details id="fr-2-2">
 <summary><b>FR-2.2</b> — Propulsor creation</summary>
 
 **What it does:** For each `design_specification/propulsion/propulsor` node: reads `powertrain` + `type` (concatenated, for example `turbo`+`fan`), `energy_carrier_ID`, `thrust_share`, and `position/{parent_component, x, y, z}`. Instantiates `Turbofan`, `Turboprop` or `Openrotorfan` for the matching energy carrier. Unsupported combinations throw `std::runtime_error`.
 
-**Implemented by (software requirements):** `PropulsionDesign::create_propulsors()`, `utility::create_engine()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_propulsors()`, `utility::create_engine()`
+
+</details>
 
 **Why it is needed:** The aircraft file describes the propulsors (type, fuel, thrust share, position); the module needs them as typed objects to design each one. Unknown combinations must be rejected.
 
 </details>
 
-<details>
+<details id="fr-2-3">
 <summary><b>FR-2.3</b> — Position-tag parsing</summary>
 
 **What it does:** Maps text tags to enums: parent ∈ {wing, wing_body, fuselage, empennage}; lateral ∈ {left, right, mid}; longitudinal ∈ {front, rear}; vertical ∈ {under, mid, over, in}. Any other text throws.
 
-**Implemented by (software requirements):** `utility::get_parent_component()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `utility::get_parent_component()`
+
+</details>
 
 **Why it is needed:** Placement and pylon rules depend on where an engine sits (parent, side, front or rear, under or over), so the position text has to be converted to defined values and invalid text rejected.
 
 </details>
 
-<details>
+<details id="fr-2-4">
 <summary><b>FR-2.4</b> — Propulsor ordering</summary>
 
 **What it does:** Only when more than two propulsors have parent `Parent::Wing`, the list is re-ordered in place with swaps. Step 1 moves every propulsor with lateral position `Left` to the front (the test looks only at the lateral tag, for all propulsors, not only the wing-mounted ones). Step 2 is intended to order each side by required thrust, largest first, so that the largest engine is processed first and therefore becomes the inner engine of its side (FR-6.7). The permutation is stored in `swapped_order`, and `update()` is meant to undo it. **Verified by simulation:** the algorithm was ported line by line to Python, with both `std::swap` operands bound before swapping as in C++. This is a port, not a run of the C++ code. Exhaustive check of all 144 four-engine cases (6 left/right arrangements × 24 distinct thrust rankings): left-first grouping in 120/144 (83.3 %), each side in descending thrust order in 120/144 (83.3 %), original order restored by `update()` in 124/144 (86.1 %). With equal thrust shares, which is the usual case, left engines always come first, and all 6 four-engine arrangements are restored; for six equal-thrust engines (3 left, 3 right), 17 of 20 arrangements are restored. The intended order and the restoration are therefore **not guaranteed** for unequal thrust shares or more engines (⚠ O-21). The engines keep their IDs, so the exported `propulsion@<ID>` nodes are not mixed up, but their order in the XML and in the report can differ from the input order.
 
-**Implemented by (software requirements):** `PropulsionDesign::sort_propulsors()`, `PropulsionDesign::update()`, `Propulsion::swap()` (via move constructor / move assignment)
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::sort_propulsors()`, `PropulsionDesign::update()`, `Propulsion::swap()` (via move constructor / move assignment)
+
+</details>
 
 **Why it is needed:** Inner and outer wing engines are recognised by the order in which they are placed, so the engines need a defined processing order.
 
 </details>
 
-<details>
+<details id="fr-2-5">
 <summary><b>FR-2.5</b> — Energy-carrier map</summary>
 
 **What it does:** Reads each `design_specification/energy_carriers/energy_carrier@ID` as the numeric carrier ID (the key later referenced by `propulsor/energy_carrier_ID`) and reads `energy_carrier/value` as the exact fuel identifier, case-insensitively. The fuel identifier is looked up in the shared database `energy_carrier.xml` through `families()` of `libraries/energyCarriers`. The entry's `family` attribute (`Kerosene` or `LiquidHydrogen`) selects the propulsion template (`EnergyCarrierFamily::Kerosene` or `::Liquid_Hydrogen`). Currently recognised identifiers: `kerosene`, `liquid_hydrogen`, `liquid_hydrogen_green` and `SAF-HEFA-SPK` (family Kerosene, so it is sized like a kerosene engine; the engine library's optional lower-heating-value rescaling of the fuel flow is not used by this module, which matters for SAF because its LHV differs from kerosene, ⚠ O-19). An identifier that is not in the database throws "The energy carrier '…' is not supported.", a family other than the two above throws, and an unknown carrier ID in a propulsor throws. **Runtime dependency:** `energy_carrier.xml` is located by `find_energy_carrier_database()` in `libs/energyCarriers`, relative to the process **working directory**. It checks `<dir>/databases/general_data/energy_carrier.xml`, starting with the current directory and then moving to the parent directory, for at most six directory levels in total (the current directory plus five parents). If none exists it falls back to `../databases/general_data/energy_carrier.xml`. Starting the executable from the wrong directory therefore makes the lookup fail (this caused the earlier lower test result). A copy of the file is kept in the repository under `libs/general_data/`.
 
-**Implemented by (software requirements):** `utility::create_energy_carrier_map() / to_energy_carrier()`, `families()` (energyCarriers library)
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `utility::create_energy_carrier_map() / to_energy_carrier()`, `families()` (energyCarriers library)
+
+</details>
 
 **Why it is needed:** The shared database maps fuel identifiers to the supported energy-carrier families (kerosene and liquid hydrogen), which avoids a separate code path for each identifier within a family.
 
 </details>
 
-<details>
+<details id="fr-2-6">
 <summary><b>FR-2.6</b> — Design flight condition</summary>
 
 **What it does:** Reads `design_mission/{initial_cruise_mach_number, initial_cruise_altitude, delta_ISA}`. Builds the atmosphere object with sea-level temperature $T_0+\Delta ISA$ and pressure $p_0$ (Eq. 3).
 
-**Implemented by (software requirements):** `PropulsionDesign::get_design_condition()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::get_design_condition()`
+
+</details>
 
 **Why it is needed:** The bucket point (a local low-TSFC operating point) is only meaningful at the flight condition the aircraft is designed for, so the design Mach number, altitude and temperature deviation must be known.
 
 </details>
 
-<details>
+<details id="fr-2-7">
 <summary><b>FR-2.7</b> — Offtake requirement</summary>
 
 **What it does:** Reads `component_design/systems/specific/average_bleed_air_demand` and `average_power_demand`. If either is missing, zero offtakes are used and a warning is printed.
 
-**Implemented by (software requirements):** `PropulsionDesign::create_propulsors()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_propulsors()`
+
+</details>
 
 **Why it is needed:** Bleed air taken from the engines reduces their thrust and shaft power increases their fuel flow (FR-4.6), so the engines can only be sized and evaluated correctly if the demand is known.
 
 </details>
 
-<details>
+<details id="fr-2-8">
 <summary><b>FR-2.8</b> — Thrust and offtake distribution</summary>
 
 **What it does:** Computes the total required thrust (Eq. 1), then each engine's thrust and offtakes by its thrust share (Eq. 2). The individual shares are not range-checked (⚠ O-15).
 
-**Implemented by (software requirements):** `PropulsionDesign::create_propulsors()`, `utility::create_engine()`, `operator*(double, Offtakes)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_propulsors()`, `utility::create_engine()`, `operator*(double, Offtakes)`
+
+</details>
 
 **Why it is needed:** The thrust of the whole aircraft has to be split over the individual engines (and the offtakes with it), because each engine is sized for its own share.
 
@@ -682,9 +638,12 @@ Offtakes are split by thrust share only. The code marks this as a `@todo` for ot
 | Offtakes | `component_design/systems/specific/average_{bleed_air_demand, power_demand}` |
 | Geometry | `component_design/{wing, fuselage, empennage}/…` |
 
+</details>
+
 ---
 
-## 3. FR-3 — Design-consistency validation
+<details id="fr-3">
+<summary><b>FR-3 — Design-consistency validation</b></summary>
 
 **Statement.** The module shall check its propulsor set, both after setup and after the design loop, and shall abort with a named error if the sizing point or the take-off mass is missing or the total thrust does not match the requirement. The lateral thrust-symmetry check exists in the code but is currently inactive (FR-3.4, ⚠ O-25).
 **Src:** `PropulsionDesign::check_validity()`
@@ -693,7 +652,7 @@ Offtakes are split by thrust share only. The code marks this as a `@todo` for ot
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-3)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-3)</summary>
 
 <details>
 <summary><code>PropulsionDesign::check_validity()</code></summary>
@@ -706,53 +665,73 @@ Re-reads MTOM and T/W, recomputes $T_{tot}$; sums $T_i$ and, per engine, the thr
 
 </details>
 
-<details>
+<details id="fr-3-1">
 <summary><b>FR-3.1</b> — Sizing point present</summary>
 
 **Condition that triggers the error:** $T/W \le 0$
 
 **Error message:** "No design thrust given. Get a sizing point."
 
-**Implemented by (software requirements):** `PropulsionDesign::check_validity()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::check_validity()`
+
+</details>
 
 **Why it is needed:** Without a thrust-to-weight ratio the required thrust cannot be computed, so the module must stop instead of designing engines for zero thrust.
 
 </details>
 
-<details>
+<details id="fr-3-2">
 <summary><b>FR-3.2</b> — MTOM present</summary>
 
 **Condition that triggers the error:** $m_{MTO} \le 0$
 
 **Error message:** "No MTOM given. Get a MTOM."
 
-**Implemented by (software requirements):** `PropulsionDesign::check_validity()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::check_validity()`
+
+</details>
 
 **Why it is needed:** Without a take-off mass the required thrust cannot be computed.
 
 </details>
 
-<details>
+<details id="fr-3-3">
 <summary><b>FR-3.3</b> — Thrust balance</summary>
 
 **Condition that triggers the error:** $\left\lvert\sum_i T_i - T_{tot}\right\rvert \ge 10\ \text{N}$. Only the sum is checked, so negative shares or shares above 1 can cancel and pass (⚠ O-15).
 
 **Error message:** "Total thrust share of engines is not equal to one."
 
-**Implemented by (software requirements):** `PropulsionDesign::check_validity()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::check_validity()`
+
+</details>
 
 **Why it is needed:** This check detects a significant mismatch between the total thrust of the engines and the required total thrust.
 
 </details>
 
-<details>
+<details id="fr-3-4">
 <summary><b>FR-3.4</b> — Lateral thrust symmetry</summary>
 
 **Condition that triggers the error:** $\lvert M_x\rvert \ge 10\ \text{N·m}$, where the code computes the moment of the thrust about the origin as $\vec M=\vec r\times(T,0,0)=(0,\;zT,\;-yT)$ and tests only the $x$ component, which is identically zero. **Since commit `dc80519b` this check therefore never fires (⚠ O-25).**
 
 **Error message:** "Non-symmetrical thrust about y-axis. Moment: <M_y>" (prints the $y$ component, but the condition uses $M_x$).
 
-**Implemented by (software requirements):** `PropulsionDesign::check_validity()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::check_validity()`
+
+</details>
 
 **Why it is needed:** The check is intended to detect a significant lateral thrust imbalance, which would produce a yawing moment; in the current code it is inactive (⚠ O-25).
 
@@ -765,9 +744,12 @@ $$\vec M=\sum_i \vec r_i\times(T_i,0,0)=\Big(0,\;\sum_i z_iT_i,\;-\sum_i y_iT_i\
 
 $y_i$ and $z_i$ are the lateral and vertical coordinates of engine $i$. Because the thrust is assumed along $+x$, $M_x$ is zero by construction, so the condition of Eq. 5 can never be met: the lateral symmetry check is inactive since commit `dc80519b` (⚠ O-25). The yawing moment that the previous version checked ($\sum_i T_i y_i$) is $-M_z$. FR-3 runs twice: once at the end of initialization, and once after the design loop.
 
+</details>
+
 ---
 
-## 4. FR-4 — Engine sizing ("Rubber" method)
+<details id="fr-4">
+<summary><b>FR-4 — Engine sizing ("Rubber" method)</b></summary>
 
 **Statement.** For each propulsor, the module shall select a reference engine from the engine database and scale it ("rubberize" it) so that its sea-level static take-off thrust, taken from the engine deck, matches the propulsor's required thrust. It shall also derive the engine's dimensions and dry mass, and its fuel-efficiency "bucket point" at the design flight condition, including offtakes.
 **Src:** `engine_design/engine_design.{h,cpp}`, `engine_design/rubber/{rubber_design,turbofan,openrotorfan}.cpp`
@@ -777,7 +759,7 @@ $y_i$ and $z_i$ are the lateral and vertical coordinates of engine $i$. Because 
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-4)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-4)</summary>
 
 <details>
 <summary><code>io::load_engine_data() / io::load_engine_scaled()</code></summary>
@@ -952,111 +934,161 @@ Raymer scaling of dimensions and dry mass (Eq. 8, 9 without the technology facto
 
 </details>
 
-<details>
+<details id="fr-4-1">
 <summary><b>FR-4.1</b> — Engine model selection</summary>
 
 **What it does:** If the config gives a model for this engine ID (`propulsion@ID/engine/Rubber/engine_model`) the model is used. Otherwise the default entry (`ID="Default"`, internally id −1) is used. If no model is configured at all, the module picks the database engine whose unscaled SLST is closest to the required thrust (Eq. 6). If the database is empty, it throws "No engine found in the database".
 
-**Implemented by (software requirements):** `Rubber::preselected_engine()`, `Rubber::select_engine()`, `Rubber::initialize()`, `io::load_engine_data()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::preselected_engine()`, `Rubber::select_engine()`, `Rubber::initialize()`, `io::load_engine_data()`
+
+</details>
 
 **Why it is needed:** Each engine is a scaled copy of a known reference engine, so a reference engine has to be chosen: either the one the user fixed, or the one closest to the required thrust.
 
 </details>
 
-<details>
+<details id="fr-4-2">
 <summary><b>FR-4.2</b> — Load engine data</summary>
 
 **What it does:** Loads `<model>/<model>.xml` from the project engine directory first, then from the database (`path_engine_database`). If the engine is not found, `io::load_engine_data()` throws a message listing the searched folders. `io::load_engine_scaled()`, which loads the engine object afterwards, only checks for the folder `<model>` and throws a shorter message without the folder list ("The engine XML file: <model> could not be found!"). In the three sizing routines `load_engine_data()` is called first with the same search paths, so a missing engine normally produces the message with the folder list.
 
-**Implemented by (software requirements):** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`, `io::load_engine_data()`, `io::load_engine_scaled()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`, `io::load_engine_data()`, `io::load_engine_scaled()`
+
+</details>
 
 **Why it is needed:** The reference engine data (dimensions, mass, performance decks) must be found in the project or in the database; a missing engine must give a clear error.
 
 </details>
 
-<details>
+<details id="fr-4-3">
 <summary><b>FR-4.3</b> — Reference thrust and scale factor</summary>
 
 **What it does:** Evaluates the unscaled engine ($k=1$) at sea level, Mach 0, "takeoff" rating, no offtakes (⚠ O-4). The scale factor is then $k = T_i/T_{ref}$ if $T_i>0$, and $k=1$ otherwise (Eq. 7). The call passes the design atmosphere (which includes $\Delta ISA$), but with zero offtakes it has no influence on $T_{ref}$ (⚠ O-4).
 
-**Implemented by (software requirements):** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`, `Engine::calculate_N1_with_penalties()`, `Engine::get_thrust() / get_fuelflow()`, `io::load_engine_scaled()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`, `Engine::calculate_N1_with_penalties()`, `Engine::get_thrust() / get_fuelflow()`, `io::load_engine_scaled()`
+
+</details>
 
 **Why it is needed:** The reference engine is scaled to target the thrust required at the sizing condition (sea level, Mach 0, take-off rating, no offtakes).
 
 </details>
 
-<details>
+<details id="fr-4-4">
 <summary><b>FR-4.4</b> — Dimension scaling</summary>
 
 **What it does:** Scales height, width, length and fan diameter (Eq. 8). The engine library defines the engine "diameter" as `max(FanDiameter, PropDiameter)` (`EngineData::dimensions()`), so for a propeller or open-rotor engine such as `CROR` (fan 1.2 m, propeller 3.25 m) the value that is scaled and later used by FR-5 and FR-6 is the propeller diameter.
 
-**Implemented by (software requirements):** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`
+
+</details>
 
 **Why it is needed:** Nacelle, placement and pylon need the engine size; there is no separate engine geometry at this design stage, so the size is derived from the reference engine by a published scaling law.
 
 </details>
 
-<details>
+<details id="fr-4-5">
 <summary><b>FR-4.5</b> — Dry-mass scaling</summary>
 
 **What it does:** Scales the dry mass and applies the engine-mass technology factor (Eq. 9).
 
-**Implemented by (software requirements):** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`
+
+</details>
 
 **Why it is needed:** The engine mass is needed for the aircraft mass and balance; the technology factor allows studies of lighter or heavier future engines.
 
 </details>
 
-<details>
+<details id="fr-4-6">
 <summary><b>FR-4.6</b> — Offtake-corrected performance</summary>
 
 **What it does:** Thrust and fuel flow at any operating point include the bleed and shaft offtake penalties (Eq. 10–12).
 
-**Implemented by (software requirements):** `Engine::calculate_N1_with_penalties()`, `Engine::calculate_offtake_correction()`, `Engine::get_thrust() / get_fuelflow()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Engine::calculate_N1_with_penalties()`, `Engine::calculate_offtake_correction()`, `Engine::get_thrust() / get_fuelflow()`
+
+</details>
 
 **Why it is needed:** Including the offtakes prevents the thrust and fuel consumption from being evaluated as though no bleed air or shaft power were taken from the engine: the bleed correction changes the thrust, the shaft-power correction changes the fuel flow.
 
 </details>
 
-<details>
+<details id="fr-4-7">
 <summary><b>FR-4.7</b> — Bucket-point search</summary>
 
 **What it does:** Finds the first local TSFC minimum on a fixed N1 grid at the design condition with offtakes (Eq. 13, algorithm below). Result `{thrust, tsfc}` is stored on the propulsor. Only the first ("idle") N1 calculation is protected: if it throws, a warning is printed and the bucket point is `{0, 0}`. The following "takeoff" N1 calculation is not protected and can propagate its exception.
 
-**Implemented by (software requirements):** `Rubber::calculate_bucket_point()`, `Engine::calculate_N1_with_penalties()`, `Engine::get_thrust() / get_fuelflow()`, `io::load_engine_scaled()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::calculate_bucket_point()`, `Engine::calculate_N1_with_penalties()`, `Engine::get_thrust() / get_fuelflow()`, `io::load_engine_scaled()`
+
+</details>
 
 **Why it is needed:** The bucket point provides a characteristic thrust and TSFC value at the design flight condition for export to the aircraft file and for the report.
 
 </details>
 
-<details>
+<details id="fr-4-8">
 <summary><b>FR-4.8</b> — Engine-efficiency technology factor</summary>
 
 **What it does:** Re-scales the engine's fuel-flow deck (`<engine>_WF.csv`) when the efficiency factor in the config differs from the factor already stored in the engine XML (Eq. 14). In `Rubber::initialize()` this happens only for preselected engines that already exist in the project engine directory; in `Rubber::save()` it is applied after an engine has been copied from the database into the project (⚠ O-10). **Caveat:** for an engine that is newly copied from the database, sizing and the report data (`update()`, `report()`) run before `save()`, so on the first run the bucket point and the report use the unadjusted deck; the adjusted deck is used from the next run, when the engine already exists in the project directory.
 
-**Implemented by (software requirements):** `Rubber::initialize()`, `Rubber::save()`, `EngineDesigner::scale_deck_data_values()`, `EngineDesigner::write_deck_value()`, `EngineDesigner::update_efficiency_factor()`, `io::load_engine_data()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::initialize()`, `Rubber::save()`, `EngineDesigner::scale_deck_data_values()`, `EngineDesigner::write_deck_value()`, `EngineDesigner::update_efficiency_factor()`, `io::load_engine_data()`
+
+</details>
 
 **Why it is needed:** Studies of more or less efficient future engines should be possible from the configuration file, without a new engine data set, and without applying the factor twice.
 
 </details>
 
-<details>
+<details id="fr-4-9">
 <summary><b>FR-4.9</b> — Engine bookkeeping and save</summary>
 
 **What it does:** Records each designed model. On `save()`, copies every designed engine folder that is not yet in the project engine directory from the database into it.
 
-**Implemented by (software requirements):** `EngineDesigner accessors (add_designed_engine(), designed_engines(), engine_database(), engine_directory())`, `Rubber::save()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `EngineDesigner accessors (add_designed_engine(), designed_engines(), engine_database(), engine_directory())`, `Rubber::save()`
+
+</details>
 
 **Why it is needed:** The engine data used by the design is copied into the project so that the selected model and its data are retained.
 
 </details>
 
-<details>
+<details id="fr-4-10">
 <summary><b>FR-4.10</b> — Type-specific checks</summary>
 
 **What it does:** *LH₂ turbofan:* prints the engine type and logs an error (does not throw) if the model is not of type `turbofan`. *Open-rotor:* after sizing, evaluates the tip Mach number at the "cruise" rating and, if it exceeds 1.2, prints the message "Tip Speed to high. Consider using more engines or reduce T/W" (twice, with the design flight Mach number, not the tip Mach number, printed in between) at the normal output level, not as a warning (Eq. 15, ⚠ O-3). The library formula multiplies the N1 speed by the gearbox ratio (⚠ O-20).
 
-**Implemented by (software requirements):** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`, `Engine::get_tip_mach()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::operator() (turbofan kerosene, turbofan LH2, open-rotor)`, `Engine::get_tip_mach()`
+
+</details>
 
 **Why it is needed:** These checks alert the user to a possible model mismatch (liquid-hydrogen turbofan) or an excessive calculated tip speed (open rotor); they do not stop the design.
 
@@ -1119,9 +1151,12 @@ $$M_{tip,rel}=\sqrt{\Big(\frac{\pi\,D_{fan}\;n_{N1}\;i_{gb}}{a}\Big)^{2}+M^{2}},
 
 where $i_{gb}$ is the gearbox ratio and $a$ the speed of sound. A message is printed if $M_{tip,rel}>1.2$ (see FR-4.10).
 
+</details>
+
 ---
 
-## 5. FR-5 — Nacelle geometry design
+<details id="fr-5">
+<summary><b>FR-5 — Nacelle geometry design</b></summary>
 
 **Statement.** The module shall generate a 3-D nacelle surface around every engine, large enough to enclose the engine's cross-section and fan, with a mid-section enlarged by 21 % over the inlet and exit sections for turbofans. It shall also generate a simplified engine-geometry object for visualisation.
 **Src:** `nacelle/default/{default_nacelle,turbofan,openrotorfan}.cpp`
@@ -1130,7 +1165,7 @@ where $i_{gb}$ is the gearbox ratio and $a$ the speed of sound. A message is pri
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-5)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-5)</summary>
 
 <details>
 <summary><code>nacelle::Default::initialize()</code></summary>
@@ -1179,67 +1214,97 @@ Builds the 12-section open-rotor nacelle (Table 5.2) and a single-section engine
 
 </details>
 
-<details>
+<details id="fr-5-1">
 <summary><b>FR-5.1</b> — Shape selection</summary>
 
 **What it does:** Reads `propulsion@ID/nacelle/profile` (per engine ID, else the Default entry; case-insensitive). `circle` and `ellipse` both give a unit circle (`ellipse(1,1)`, ⚠ O-13). A name ending in `.dat` loads a contour file from the geometry directory. Anything else throws `std::invalid_argument`.
 
-**Implemented by (software requirements):** `nacelle::Default::initialize()`, `nacelle::Default::get_section_shape()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::initialize()`, `nacelle::Default::get_section_shape()`
+
+</details>
 
 **Why it is needed:** The nacelle cross-section must be selectable by the user, and an invalid choice must be rejected.
 
 </details>
 
-<details>
+<details id="fr-5-2">
 <summary><b>FR-5.2</b> — Default shape file</summary>
 
 **What it does:** If the requested `.dat` file does not exist, the module creates it (and the directory) with a 40-point unit circle of diameter 1 (Eq. 16) and then reads it. Failure to create it throws.
 
-**Implemented by (software requirements):** `nacelle::Default::get_section_shape()`, `NacelleDesigner::geometry_directory()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::get_section_shape()`, `NacelleDesigner::geometry_directory()`
+
+</details>
 
 **Why it is needed:** A missing shape file must not stop the design, so a default circular shape is created.
 
 </details>
 
-<details>
+<details id="fr-5-3">
 <summary><b>FR-5.3</b> — Inner diameter</summary>
 
 **What it does:** The nacelle must enclose the largest of the engine's width, height and fan diameter (Eq. 17). The section contour is set to this width and height.
 
-**Implemented by (software requirements):** `nacelle::Default::turbofan_method()`, `nacelle::Default::operator()(Openrotorfan) / openrotor_method`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::turbofan_method()`, `nacelle::Default::operator()(Openrotorfan) / openrotor_method`
+
+</details>
 
 **Why it is needed:** The nacelle has to enclose the engine, so its size is set from the largest engine dimension (width, height or fan diameter).
 
 </details>
 
-<details>
+<details id="fr-5-4">
 <summary><b>FR-5.4</b> — Turbofan nacelle lofting</summary>
 
 **What it does:** Four sections along the engine axis with the scale pattern in Table 5.1 (Eq. 18). The surface is oriented along global X (`normal = (1,0,0)`) and named `nacelle_<id>`. Applies to kerosene and LH₂ turbofans.
 
-**Implemented by (software requirements):** `nacelle::Default::turbofan_method()`, `nacelle::Default::operator()(Turbofan)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::turbofan_method()`, `nacelle::Default::operator()(Turbofan)`
+
+</details>
 
 **Why it is needed:** The nacelle geometry is needed for placement, for the pylon attachment and for the plots; its enlarged middle section follows a cited design rule.
 
 </details>
 
-<details>
+<details id="fr-5-5">
 <summary><b>FR-5.5</b> — Turbofan engine-geometry stub</summary>
 
 **What it does:** A two-section cone ($0\to0.15\,D_{in}$ over $0.1L$) named `engine_<id>`, stored as the engine geometry (used by the plots).
 
-**Implemented by (software requirements):** `nacelle::Default::turbofan_method()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::turbofan_method()`
+
+</details>
 
 **Why it is needed:** A simple engine shape is needed so that the engine can be drawn inside the nacelle in the plots.
 
 </details>
 
-<details>
+<details id="fr-5-6">
 <summary><b>FR-5.6</b> — Open-rotor nacelle</summary>
 
 **What it does:** A 12-section surface (hub body plus two thin full-diameter discs representing the two rotors) with the pattern in Table 5.2. The engine-geometry stub is a single section of scale 0.3.
 
-**Implemented by (software requirements):** `nacelle::Default::operator()(Openrotorfan) / openrotor_method`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::operator()(Openrotorfan) / openrotor_method`
+
+</details>
 
 **Why it is needed:** An open-rotor engine looks different from a ducted fan (hub with two rotor planes), so it needs its own nacelle shape.
 
@@ -1286,9 +1351,12 @@ The 1.21 factor is cited from [Ata10] p. 45. The section offsets in the code are
 | 11 | 0.78 L | 0.3 | Aft body |
 | 12 | 0.88 L | 0.2 | Tail cone |
 
+</details>
+
 ---
 
-## 6. FR-6 — Engine placement (integration)
+<details id="fr-6">
+<summary><b>FR-6 — Engine placement (integration)</b></summary>
 
 **Statement.** The module shall compute the global position of each engine's reference point (the centre of the fan or propeller disc) from the parent component given in the specification (wing, fuselage, empennage, wing-body) and from the actual aircraft geometry, using the empirical placement rules of [Ata10].
 **Src:** `integration/default/{default_integration,turbofan,openrotorfan}.cpp`
@@ -1297,7 +1365,7 @@ The 1.21 factor is cited from [Ata10] p. 45. The section offsets in the code are
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-6)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-6)</summary>
 
 <details>
 <summary><code>integration::Default::operator()(Turbofan<Kerosene>&), operator()(Turbofan<LH2>&)</code></summary>
@@ -1490,111 +1558,161 @@ For `Parent::Wing` only: `engines_done.wing mod max_shift_ids()`; 0 for all othe
 
 </details>
 
-<details>
+<details id="fr-6-1">
 <summary><b>FR-6.1</b> — Support check</summary>
 
 **What it does:** The (parent, lateral, longitudinal, vertical) tuple must be in the supported set for the engine type (Tables 7.1 and 7.2). Otherwise throw "The parent component or location of the engine is not supported."
 
-**Implemented by (software requirements):** `integration::Default::turbofan_method()`, `integration::Default::openrotorfan_method()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integration::Default::turbofan_method()`, `integration::Default::openrotorfan_method()`
+
+</details>
 
 **Why it is needed:** Placement rules exist only for certain positions; any other position must be rejected instead of guessed.
 
 </details>
 
-<details>
+<details id="fr-6-2">
 <summary><b>FR-6.2</b> — Geometry selection</summary>
 
 **What it does:** Each placement selects only the geometry it needs. The fuselage is needed by all four placements (wing, fuselage, empennage, wing-body) and must be unique (otherwise throw). The vertical tail is needed only for empennage-mounted engines: it is the first vertical empennage surface (otherwise throw). The wing is needed for wing and wing-body placements: with several wings, the wing named in `name_wing_engines` is used; if not found, the first wing is used with a warning.
 
-**Implemented by (software requirements):** `integration::Default::select_wing() / select_fuselage() / select_vertical_tail()`, `geometry::is_vertical()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integration::Default::select_wing() / select_fuselage() / select_vertical_tail()`, `geometry::is_vertical()`
+
+</details>
 
 **Why it is needed:** Each placement formula needs particular parts of the airframe (the fuselage always, the wing that carries the engines for wing and wing-body engines, the vertical tail for tail-mounted engines); unclear geometry must give an error or a warning.
 
 </details>
 
-<details>
+<details id="fr-6-3">
 <summary><b>FR-6.3</b> — Wing-mounted placement</summary>
 
 **What it does:** See §7.1. Wing must be extruded along ±Y, or throw.
 
-**Implemented by (software requirements):** `integrate_into_wing() (turbofan)`, `calculate_span_position()`, `integrate_under_wing() / integrate_over_wing() / integrate_into_wing() (open-rotor)`, `calculate_span_position_openrotor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integrate_into_wing() (turbofan)`, `calculate_span_position()`, `integrate_under_wing() / integrate_over_wing() / integrate_into_wing() (open-rotor)`, `calculate_span_position_openrotor()`
+
+</details>
 
 **Why it is needed:** Wing-mounted engines are the most common layout, and their position follows established rules for span, chord and height.
 
 </details>
 
-<details>
+<details id="fr-6-4">
 <summary><b>FR-6.4</b> — Fuselage-mounted placement</summary>
 
 **What it does:** See §7.2. Exactly two fuselage engines, one per side.
 
-**Implemented by (software requirements):** `integrate_into_fuselage() (turbofan)`, `integrate_into_fuselage() / integrate_into_fuselage_top() (open-rotor)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integrate_into_fuselage() (turbofan)`, `integrate_into_fuselage() / integrate_into_fuselage_top() (open-rotor)`
+
+</details>
 
 **Why it is needed:** Rear-fuselage engines are a second standard layout and need their own rules.
 
 </details>
 
-<details>
+<details id="fr-6-5">
 <summary><b>FR-6.5</b> — Empennage / wing-body placement</summary>
 
 **What it does:** See §7.3 and §7.4.
 
-**Implemented by (software requirements):** `integrate_into_empennage() (turbofan)`, `integrate_into_wing_body()`, `integrate_into_empennage() (open-rotor)`, `geometry::is_vertical()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integrate_into_empennage() (turbofan)`, `integrate_into_wing_body()`, `integrate_into_empennage() (open-rotor)`, `geometry::is_vertical()`
+
+</details>
 
 **Why it is needed:** Tail-mounted and wing-body engines are further layouts that need their own rules and clearance checks.
 
 </details>
 
-<details>
+<details id="fr-6-6">
 <summary><b>FR-6.6</b> — No-geometry fallback</summary>
 
 **What it does:** If no aircraft geometry exists, the engine is placed at the origin.
 
-**Implemented by (software requirements):** `guess_position()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `guess_position()`
+
+</details>
 
 **Why it is needed:** The fallback allows placement to continue with a defined position (the origin) when airframe geometry is not yet available.
 
 </details>
 
-<details>
+<details id="fr-6-7">
 <summary><b>FR-6.7</b> — Space bookkeeping</summary>
 
 **What it does:** For wing-mounted engines (`Parent::Wing`: turbofans and open-rotor in-wing engines), the engine's "slot" on its side is `slot = engines_done.wing mod (N_w/2)`; slot 0 is the inner engine, slot 1 the outer engine. The slot therefore alternates with the processing order of all wing-mounted engines, not per side, so correct inner/outer pairs rely on the processing order of FR-2.4 (⚠ O-21). `max_slots_per_side()` gives 1 for $N_w=2$ and 2 for $N_w=4$ and throws "Unsupported number of wing-mounted engines." otherwise; the "No space on the wing" check `slot >= max_slots_per_side()` cannot be reached with these values. The open-rotor under- and over-wing placements still use the older rule (a second engine on the same parent tuple is the outer engine). Wing-body engines (`Parent::WingBody`) always get slot 0, so both wing-body engines use the shift entry with `id` 0. Fuselage and empennage placements still reject a second engine on an already used parent tuple.
 
-**Implemented by (software requirements):** `slot_index_on_side()`, `max_slots_per_side()`, `max_shift_ids()`, `integrate_into_wing() (turbofan)`, `integration::Default::turbofan_method()`, `integration::Default::openrotorfan_method()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `slot_index_on_side()`, `max_slots_per_side()`, `max_shift_ids()`, `integrate_into_wing() (turbofan)`, `integration::Default::turbofan_method()`, `integration::Default::openrotorfan_method()`
+
+</details>
 
 **Why it is needed:** The module tracks which positions are occupied so that supported multi-engine layouts can assign distinct locations (inner and outer engine), and rejects some over-capacity cases; not every unsupported engine count is rejected (⚠ O-6).
 
 </details>
 
-<details>
+<details id="fr-6-8">
 <summary><b>FR-6.8</b> — User position shift</summary>
 
 **What it does:** Since commit `dc80519b`, each engine slot can have its own shift, defined in `repositioning/engine_shifts/engine` entries (`id`, `shift_x`, `shift_y`, `shift_z`) for one side of the aircraft; the other side is mirrored. The entries are validated when the integrator is constructed (§7.5). For each engine the shift entry is looked up (by its slot on the side for wing, wing-body and open-rotor wing and fuselage engines, by its engine ID for turbofan fuselage and empennage engines; open-rotor empennage engines get no shift) and added in the frame in which the position is computed, after mirroring for left engines (Eq. 26). See §7.5 and ⚠ O-26, O-27.
 
-**Implemented by (software requirements):** `validate_user_shift_configuration()`, `get_user_shift()`, `calculate_user_shift()`, `slot_index_on_side()`, `max_shift_ids()`, `integrate_into_wing() (turbofan)`, `integrate_into_fuselage() (turbofan)`, `integrate_into_empennage() (turbofan)`, `integrate_into_wing_body()`, `integrate_under_wing() / integrate_over_wing() / integrate_into_wing() (open-rotor)`, `integrate_into_fuselage() / integrate_into_fuselage_top() (open-rotor)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `validate_user_shift_configuration()`, `get_user_shift()`, `calculate_user_shift()`, `slot_index_on_side()`, `max_shift_ids()`, `integrate_into_wing() (turbofan)`, `integrate_into_fuselage() (turbofan)`, `integrate_into_empennage() (turbofan)`, `integrate_into_wing_body()`, `integrate_under_wing() / integrate_over_wing() / integrate_into_wing() (open-rotor)`, `integrate_into_fuselage() / integrate_into_fuselage_top() (open-rotor)`
+
+</details>
 
 **Why it is needed:** The automatic position is a rule of thumb; the user needs a way to move individual engines without changing the code.
 
 </details>
 
-<details>
+<details id="fr-6-9">
 <summary><b>FR-6.9</b> — Global-frame output</summary>
 
 **What it does:** Converts the result from the component-local frame to the global frame and stores it as the engine position.
 
-**Implemented by (software requirements):** `integrate_into_* (all placement functions)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integrate_into_* (all placement functions)`
+
+</details>
 
 **Why it is needed:** Other modules use the global aircraft coordinate system, so the position must be given in it.
 
 </details>
 
-<details>
+<details id="fr-6-10">
 <summary><b>FR-6.10</b> — Engine at wing kink (optional)</summary>
 
 **What it does:** If `program_settings/engine_at_kink` is true, wing-mounted turbofans are placed at the wing kink span station instead of the default span position, when a kink exists and the engine fits there. Details in §7.7.
 
-**Implemented by (software requirements):** `find_kink_span_position()`, `integrate_into_wing() (turbofan)`, `integrate_into_wing_body()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `find_kink_span_position()`, `integrate_into_wing() (turbofan)`, `integrate_into_wing_body()`
+
+</details>
 
 **Why it is needed:** This option allows a wing-kink installation to be evaluated. A possible structural benefit (no additional local reinforcement outside the existing kink rib, as the configuration description states) motivates the choice; the module does not calculate that benefit.
 
@@ -1731,7 +1849,10 @@ Sections with $\lvert z_i\rvert<z_{min}$ are skipped, with $z_{min}=\tfrac{w_f}{
 $$\lvert z_{kink}\rvert-\tfrac{D_{max}}{2}\ge \text{boundary}_{index},\qquad \lvert z_{kink}\rvert+\tfrac{D_{max}}{2}\le \text{boundary}_{index+1}$$
 If it does, $z_e=\lvert z_{kink}\rvert$; otherwise a warning is printed and the default (Eq. 25) is kept. No kink placement exists for the single wing-body engine case and for the open-rotor placements.
 
-## 7. FR-7 — Pylon design
+</details>
+
+<details id="fr-7">
+<summary><b>FR-7 — Pylon design</b></summary>
 
 **Statement.** For engines that hang on an external strut, the module shall generate a pylon between the nacelle and the parent component, tied to the actual nacelle and parent geometry. Embedded engines get no pylon.
 **Src:** `pylon/default/{default_pylon,turbofan,openrotorfan}.cpp`
@@ -1740,7 +1861,7 @@ If it does, $z_e=\lvert z_{kink}\rvert$; otherwise a warning is printed and the 
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-7)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-7)</summary>
 
 <details>
 <summary><code>pylon::Default::initialize()</code></summary>
@@ -1825,56 +1946,81 @@ Same, with parent-specific offsets and chords $L/2$ and $0.4L$.
 
 </details>
 
-<details>
+<details id="fr-7-1">
 <summary><b>FR-7.1</b> — Applicability check</summary>
 
 **What it does:** No pylon is created if the vertical position is `In`, or if there is no aircraft geometry. The pylon stays empty (and later has no mass, FR-8.5).
 
-**Implemented by (software requirements):** `pylon::Default::turbofan_method()`, `pylon::Default::openrotorfan_method()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `pylon::Default::turbofan_method()`, `pylon::Default::openrotorfan_method()`
+
+</details>
 
 **Why it is needed:** Embedded engines have no external strut, and without geometry no pylon can be drawn, so the module must know when not to create a pylon.
 
 </details>
 
-<details>
+<details id="fr-7-2">
 <summary><b>FR-7.2</b> — Parent support check</summary>
 
-**What it does:** Supported parents: Wing (under/over), Fuselage (mid), Wing-body (over). Otherwise throw "The parent component is not supported!". This list is shared by turbofan and open-rotor pylons, so an open-rotor engine placed on the fuselage top (`Fuselage`, `Over`), which FR-6 accepts, is rejected here (see §1.1). Positions with vertical `In` return before this check (no pylon).
+**What it does:** Supported parents: Wing (under/over), Fuselage (mid), Wing-body (over). Otherwise throw "The parent component is not supported!". This list is shared by turbofan and open-rotor pylons, so an open-rotor engine placed on the fuselage top (`Fuselage`, `Over`), which FR-6 accepts, is rejected here (see FR-14). Positions with vertical `In` return before this check (no pylon).
 
-**Implemented by (software requirements):** `pylon::Default::get_attachment_points()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `pylon::Default::get_attachment_points()`
+
+</details>
 
 **Why it is needed:** A pylon can only be built where the attachment rules are defined, so other parents must be rejected.
 
 </details>
 
-<details>
+<details id="fr-7-3">
 <summary><b>FR-7.3</b> — Section profile</summary>
 
 **What it does:** Reads `propulsion@ID/pylon/profile` (a `.dat` airfoil file, per engine ID else Default). If the file does not exist, a default NACA 0012 file is generated (about 100 points per side) in the geometry directory and then read.
 
-**Implemented by (software requirements):** `pylon::Default::initialize()`, `pylon::Default::get_section_profile()`, `PylonDesigner::geometry_directory()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `pylon::Default::initialize()`, `pylon::Default::get_section_profile()`, `PylonDesigner::geometry_directory()`
+
+</details>
 
 **Why it is needed:** The pylon needs an airfoil-shaped cross-section, which the user can choose; a default is needed when none is given.
 
 </details>
 
-<details>
+<details id="fr-7-4">
 <summary><b>FR-7.4</b> — Attachment points</summary>
 
 **What it does:** Computes the nacelle-side point $P_{nac}$ and the parent-side point $P_{par}$ in global coordinates (Table 8.1).
 
-**Implemented by (software requirements):** `pylon::Default::get_attachment_points()`, `detail::get_wing_attachment_points()`, `detail::get_wing_body_attachment_points()`, `detail::get_fuselage_attachment_points()`, `pylon::Default::select_wing()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `pylon::Default::get_attachment_points()`, `detail::get_wing_attachment_points()`, `detail::get_wing_body_attachment_points()`, `detail::get_fuselage_attachment_points()`, `pylon::Default::select_wing()`
+
+</details>
 
 **Why it is needed:** The pylon connects the nacelle to the airframe, so both ends have to be found on the real nacelle and the real wing or fuselage.
 
 </details>
 
-<details>
+<details id="fr-7-5">
 <summary><b>FR-7.5</b> — Pylon construction</summary>
 
 **What it does:** Builds a two-section airfoil surface named `pylon_<id>`, with its axis pointing from the nacelle attachment to the engine position (Eq. 28). Chord lengths follow Table 8.2 and Eq. 39–42.
 
-**Implemented by (software requirements):** `pylon::Default::turbofan_method()`, `pylon::Default::openrotorfan_method()`, `pylon::Default::select_wing()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `pylon::Default::turbofan_method()`, `pylon::Default::openrotorfan_method()`, `pylon::Default::select_wing()`
+
+</details>
 
 **Why it is needed:** The turbofan pylon construction limits its section chords using the engine rear end and the selected wing's trailing edge, with a minimum chord of 0.001 m.
 
@@ -1925,9 +2071,12 @@ A warning is printed when $c_{fit}<0.3\,L$; the 0.3 L value is only a threshold 
 
 **Wing selection.** The pylon designer resolves the wing with its own `select_wing()` (mirroring the integrator's: the wing named in `name_wing_engines`, else the first one with a warning), not blindly `wings[0]`. Like the integrator's version, it reorders the shared wing list as a side effect (`std::rotate`). See ⚠ O-17 for fuselage-mounted engines.
 
+</details>
+
 ---
 
-## 8. FR-8 — Mass, centre of gravity and inertia
+<details id="fr-8">
+<summary><b>FR-8 — Mass, centre of gravity and inertia</b></summary>
 
 **Statement.** For every propulsor the module shall provide mass, centre of gravity (CG) and inertia tensor of the engine, nacelle and pylon separately, and shall be able to combine them into one point mass for the propulsor and for the whole propulsion system.
 **Src:** `mass/default/{turbofan,openrotorfan}.cpp`, `mass/point_mass.cpp`, `propulsion.h`
@@ -1936,7 +2085,7 @@ A warning is printed when $c_{fit}<0.3\,L$; the 0.3 L value is only a threshold 
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-8)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-8)</summary>
 
 <details>
 <summary><code>mass::Default::turbofan_method(engine)</code></summary>
@@ -2048,89 +2197,129 @@ Subtract the reference from the engine position and add the engine position to e
 
 </details>
 
-<details>
+<details id="fr-8-1">
 <summary><b>FR-8.1</b> — Engine mass</summary>
 
 **What it does:** Uses the mass from FR-4 (Eq. 9). Only if that mass is exactly zero does it fall back to the regression of Eq. 29 (⚠ O-7).
 
-**Implemented by (software requirements):** `mass::Default::turbofan_method() / openrotorfan_method()`, `calculate_engine_mass() / calculate_engine_mass_openrotor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `mass::Default::turbofan_method() / openrotorfan_method()`, `calculate_engine_mass() / calculate_engine_mass_openrotor()`
+
+</details>
 
 **Why it is needed:** The engine mass is needed for mass and balance; it normally comes from the engine sizing, and a regression is needed as a fallback when no mass was computed.
 
 </details>
 
-<details>
+<details id="fr-8-2">
 <summary><b>FR-8.2</b> — Engine CG and inertia</summary>
 
 **What it does:** CG on the engine axis at half the engine length; inertia of a solid cylinder (Eq. 30–31). Same for the open-rotor.
 
-**Implemented by (software requirements):** `calculate_engine_CG() / calculate_engine_inertia()`, `calculate_engine_CG_openrotor() / calculate_engine_inertia_openrotor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `calculate_engine_CG() / calculate_engine_inertia()`, `calculate_engine_CG_openrotor() / calculate_engine_inertia_openrotor()`
+
+</details>
 
 **Why it is needed:** At this design stage the engine is represented by a simplified solid-cylinder model to obtain a centre of gravity and an inertia.
 
 </details>
 
-<details>
+<details id="fr-8-3">
 <summary><b>FR-8.3</b> — Nacelle mass, CG, inertia</summary>
 
 **What it does:** Mass from a thrust regression (Eq. 32). CG is the centroid of the nacelle surface from the geometry library. Inertia comes from the geometry library mesh integration (⚠ O-1).
 
-**Implemented by (software requirements):** `calculate_nacelle_mass()`, `calculate_nacelle_CG() / calculate_nacelle_inertia()`, `calculate_nacelle_mass_openrotor()`, `calculate_nacelle_CG_openrotor() / calculate_nacelle_inertia_openrotor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `calculate_nacelle_mass()`, `calculate_nacelle_CG() / calculate_nacelle_inertia()`, `calculate_nacelle_mass_openrotor()`, `calculate_nacelle_CG_openrotor() / calculate_nacelle_inertia_openrotor()`
+
+</details>
 
 **Why it is needed:** The nacelle mass is estimated from thrust. The centre of gravity and the inertia come from the geometry library's calculation on the nacelle surface, not from that estimated mass (⚠ O-1).
 
 </details>
 
-<details>
+<details id="fr-8-4">
 <summary><b>FR-8.4</b> — Pylon mass, CG, inertia</summary>
 
 **What it does:** Mass from a thrust regression (Eq. 33). CG and inertia as for the nacelle.
 
-**Implemented by (software requirements):** `calculate_pylon_mass()`, `calculate_pylon_CG() / calculate_pylon_inertia()`, `calculate_pylon_mass_openrotor()`, `calculate_pylon_CG_openrotor() / calculate_pylon_inertia_openrotor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `calculate_pylon_mass()`, `calculate_pylon_CG() / calculate_pylon_inertia()`, `calculate_pylon_mass_openrotor()`, `calculate_pylon_CG_openrotor() / calculate_pylon_inertia_openrotor()`
+
+</details>
 
 **Why it is needed:** The pylon mass is estimated from thrust. The centre of gravity and the inertia come from the geometry library's calculation on the pylon surface, not from that estimated mass (⚠ O-1).
 
 </details>
 
-<details>
+<details id="fr-8-5">
 <summary><b>FR-8.5</b> — Embedded engines</summary>
 
 **What it does:** If the pylon has no sections (FR-7.1), the pylon point mass is left at its default (zero mass, zero CG, zero inertia).
 
-**Implemented by (software requirements):** `mass::Default::turbofan_method() / openrotorfan_method()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `mass::Default::turbofan_method() / openrotorfan_method()`
+
+</details>
 
 **Why it is needed:** Engines without a pylon must still give consistent mass results, so a zero pylon mass is defined instead of an error.
 
 </details>
 
-<details>
+<details id="fr-8-6">
 <summary><b>FR-8.6</b> — Component combination</summary>
 
 **What it does:** Adds point masses using mass-weighted CG and the parallel-axis (Steiner) theorem (Eq. 34–36). There is no guard against a total mass of zero (⚠ O-14).
 
-**Implemented by (software requirements):** `operator+(PointMass, PointMass)`, `Propulsion::total_mass()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `operator+(PointMass, PointMass)`, `Propulsion::total_mass()`
+
+</details>
 
 **Why it is needed:** The component mass properties are combined using the implemented mass-weighting and parallel-axis relations to obtain aggregate values for one engine and for the whole propulsion system.
 
 </details>
 
-<details>
+<details id="fr-8-7">
 <summary><b>FR-8.7</b> — Frame conversion</summary>
 
 **What it does:** Component CGs are stored in the engine-local frame. Before export, each CG is shifted by the engine's global position (translation only, no rotation) and shifted back afterwards (FR-9.3).
 
-**Implemented by (software requirements):** `Propulsion::change_to_global_reference_frame() / revert_to_local_reference_frame()`, `PropulsionDesign::update()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Propulsion::change_to_global_reference_frame() / revert_to_local_reference_frame()`, `PropulsionDesign::update()`
+
+</details>
 
 **Why it is needed:** The aircraft file expects centres of gravity in the global coordinate system, whereas the calculation is done relative to each engine.
 
 </details>
 
-<details>
+<details id="fr-8-8">
 <summary><b>FR-8.8</b> — Technology factors</summary>
 
 **What it does:** $f_m$, $f_n$, $f_p$ from the config multiply the respective masses.
 
-**Implemented by (software requirements):** `MassAnalyzer::initialize() / technology_factor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `MassAnalyzer::initialize() / technology_factor()`
+
+</details>
 
 **Why it is needed:** Studies with lighter or heavier components should be possible from the configuration file.
 
@@ -2163,9 +2352,12 @@ $$I_{xx}=\sum_j\big(I_{xx,j}+m_j(d_{y,j}^{2}+d_{z,j}^{2})\big),\;\; I_{yy},I_{zz
 
 The same operator is used to build the per-engine total and the total of all engines (FR-9.2). The off-diagonal sign convention should be checked (⚠ O-8).
 
+</details>
+
 ---
 
-## 9. FR-9 — Result export to the aircraft exchange file
+<details id="fr-9">
+<summary><b>FR-9 — Result export to the aircraft exchange file</b></summary>
 
 **Statement.** The module shall write all of its results into the shared aircraft XML in the structure that other UNICADO modules expect, and shall only save at its own tool level.
 **Src:** `io/aircraft_xml.{h,cpp}`, `PropulsionDesign::update()`, `PropulsionDesign::save()`
@@ -2174,7 +2366,7 @@ The same operator is used to build the per-engine total and the total of all eng
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-9)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-9)</summary>
 
 <details>
 <summary><code>io::AircraftXMLv3 (constructor)</code></summary>
@@ -2223,56 +2415,81 @@ Helpers that write mass/inertia/CG, points, strings, the bucket point and typed 
 
 </details>
 
-<details>
+<details id="fr-9-1">
 <summary><b>FR-9.1</b> — Create propulsion node</summary>
 
 **What it does:** If `component_design/propulsion` does not exist, it is created with the empty children `position`, `mass_properties` and `specific`.
 
-**Implemented by (software requirements):** `io::AircraftXMLv3 (constructor)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `io::AircraftXMLv3 (constructor)`
+
+</details>
 
 **Why it is needed:** The output location must exist in the aircraft file before results can be written to it.
 
 </details>
 
-<details>
+<details id="fr-9-2">
 <summary><b>FR-9.2</b> — Aggregate data</summary>
 
 **What it does:** Writes the reference position of the propulsion assembly and the total propulsion point mass (Eq. 34–36 applied to all engines, in the global frame).
 
-**Implemented by (software requirements):** `io::AircraftXMLv3::insert(reference position / PointMass)`, `PropulsionDesign::update()`, `operator+(PointMass, PointMass)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `io::AircraftXMLv3::insert(reference position / PointMass)`, `PropulsionDesign::update()`, `operator+(PointMass, PointMass)`
+
+</details>
 
 **Why it is needed:** The total propulsion system mass and its reference position are needed for the total aircraft mass and balance.
 
 </details>
 
-<details>
+<details id="fr-9-3">
 <summary><b>FR-9.3</b> — Per-engine data</summary>
 
 **What it does:** For each engine writes a `specific/propulsion@<ID>` node containing the items in Table 10.1. Reference-frame conversion (FR-8.7) is applied around the write.
 
-**Implemented by (software requirements):** `io::AircraftXMLv3::insert(engine) / insert_propulsion()`, `insert_point_mass / insert_point / insert_string / insert_bucket_point`, `Propulsion::change_to_global_reference_frame() / revert_to_local_reference_frame()`, `io::detail::create_endnode()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `io::AircraftXMLv3::insert(engine) / insert_propulsion()`, `insert_point_mass / insert_point / insert_string / insert_bucket_point`, `Propulsion::change_to_global_reference_frame() / revert_to_local_reference_frame()`, `io::detail::create_endnode()`
+
+</details>
 
 **Why it is needed:** Each engine's geometry, mass properties, thrust, scale and fuel consumption are the results other modules need.
 
 </details>
 
-<details>
+<details id="fr-9-4">
 <summary><b>FR-9.4</b> — Restore order (attempted)</summary>
 
 **What it does:** Attempts to restore the original propulsor order using `swapped_order`; restoration is not guaranteed for every permutation (FR-2.4, O-21). This happens before writing.
 
-**Implemented by (software requirements):** `PropulsionDesign::update()`, `Propulsion::swap()` (via move constructor / move assignment)
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::update()`, `Propulsion::swap()` (via move constructor / move assignment)
+
+</details>
 
 **Why it is needed:** Restoring the input order keeps the exported engines in a familiar presentation order; the engine IDs provide the primary link to the input specification (restoring is attempted, see FR-2.4).
 
 </details>
 
-<details>
+<details id="fr-9-5">
 <summary><b>FR-9.5</b> — Tool-level save</summary>
 
 **What it does:** `aixml::saveDocument(xml, own_tool_level)` (config value 3).
 
-**Implemented by (software requirements):** `PropulsionDesign::save()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::save()`
+
+</details>
 
 **Why it is needed:** Saving with the configured tool level follows the shared aircraft-file convention: the XML library raises an error if the module modified a value that carries a higher ToolLevel, and it stamps its own level only on modified leaf values that already carry a ToolLevel attribute; new values without that attribute are written without a stamp.
 
@@ -2294,9 +2511,12 @@ Helpers that write mass/inertia/CG, points, strings, the bucket point and typed 
 | `engine/scale_factor` | $k$ | – |
 | `engine/bucket_point/{thrust, tsfc}` | Bucket point at the initial cruise condition | N, kg/(N·s) |
 
+</details>
+
 ---
 
-## 10. FR-10 — Reporting and plotting
+<details id="fr-10">
+<summary><b>FR-10 — Reporting and plotting</b></summary>
 
 **Statement.** The module shall, on request, produce an XML summary, an HTML report, and SVG plots of the results. The switches are partly dependent: the XML summary is controlled by `xml_output` alone; the HTML report by `report_output`; SVG plots require **both** `report_output` and `plot_output/enable`.
 **Src:** `report/{create_xml_report,create_html_report,create_plots,report_data}.cpp`, `report/file_names.h`
@@ -2306,7 +2526,7 @@ Helpers that write mass/inertia/CG, points, strings, the bucket point and typed 
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-10)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-10)</summary>
 
 <details>
 <summary><code>PropulsionDesign::create_xml_report()</code></summary>
@@ -2427,56 +2647,81 @@ Minimum-TSFC point (cached); curves from several engines are added point-wise.
 
 </details>
 
-<details>
+<details id="fr-10-1">
 <summary><b>FR-10.1</b> — XML report</summary>
 
 **What it does:** Writes `propulsion_design_results.xml` into the XML directory. A new file with general information (execution date, project name, method name) is created and any old file is deleted. The end-node values (`value`, `unit`) of the `component_design/propulsion` subtree of the aircraft XML are copied into `calculation_results`. Errors while writing are caught and printed (output level); they do not stop the module.
 
-**Implemented by (software requirements):** `PropulsionDesign::create_xml_report()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_xml_report()`
+
+</details>
 
 **Why it is needed:** A machine-readable summary of the results is needed for later processing and for documentation.
 
 </details>
 
-<details>
+<details id="fr-10-2">
 <summary><b>FR-10.2</b> — Report data</summary>
 
 **What it does:** Per engine, loads the scaled engine and builds bucket curves. They are built once with and once without offtakes (Eq. 37). Also accumulates the total SLST, the take-off thrust and the take-off fuel flow (sea level, Mach 0, "takeoff" rating, with offtakes). A failure in one of the curves is caught and printed, not fatal.
 
-**Implemented by (software requirements):** `report::generate_data() / update_report_data()`, `BucketCurve::from_engine_data()`, `io::load_engine_scaled()`, `BucketCurve::operator+=`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `report::generate_data() / update_report_data()`, `BucketCurve::from_engine_data()`, `io::load_engine_scaled()`, `BucketCurve::operator+=`
+
+</details>
 
 **Why it is needed:** The summary tables and plots need the engine performance of the whole propulsion system, both with and without offtakes.
 
 </details>
 
-<details>
+<details id="fr-10-3">
 <summary><b>FR-10.3</b> — Bucket-curve plot</summary>
 
 **What it does:** `propulsion_design_bucket_curve.svg`: thrust (kN) against TSFC for the summed engine set; marks the bucket point.
 
-**Implemented by (software requirements):** `PropulsionDesign::create_plots()`, `plot::bucket_curve() / add_bucket_curve()`, `BucketCurve::find_bucket_point() / bucket_point()`, `BucketCurve::update_bucket_point()`, `report::name_bucket_curve()`, `detail::convert_color()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_plots()`, `plot::bucket_curve() / add_bucket_curve()`, `BucketCurve::find_bucket_point() / bucket_point()`, `BucketCurve::update_bucket_point()`, `report::name_bucket_curve()`, `detail::convert_color()`
+
+</details>
 
 **Why it is needed:** The bucket curve shows how the fuel consumption varies with thrust, which is needed to judge the engine design.
 
 </details>
 
-<details>
+<details id="fr-10-4">
 <summary><b>FR-10.4</b> — Geometry plots</summary>
 
 **What it does:** `propulsion_design_top_view.svg`: top view of the wings, horizontal tail, fuselage, vertical tail and the nacelles; under-wing nacelles and their engine stubs are drawn first (beneath the wing), all other nacelles last; **pylons are not drawn**. Per nacelle, `propulsion_design_<nacelle>_front.svg` (outer and inlet outline and the engine stub as ellipses, with the outer diameter dimensioned) and `propulsion_design_<nacelle>_side.svg` (side outline of nacelle and engine stub, with length and height dimensioned). The empennage surfaces are split into horizontal and vertical ones with `geometry::is_vertical()`.
 
-**Implemented by (software requirements):** `PropulsionDesign::create_plots()`, `plot::nacelle_front() / nacelle_side()`, `plot::top_overview()`, `geometry::is_vertical()`, `draw::surface()`, `detail::apply_offset()`, `report::name_top_view() / name_front_view() / name_side_view()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_plots()`, `plot::nacelle_front() / nacelle_side()`, `plot::top_overview()`, `geometry::is_vertical()`, `draw::surface()`, `detail::apply_offset()`, `report::name_top_view() / name_front_view() / name_side_view()`
+
+</details>
 
 **Why it is needed:** The installation (nacelle size and engine position) is easiest to check visually.
 
 </details>
 
-<details>
+<details id="fr-10-5">
 <summary><b>FR-10.5</b> — HTML report</summary>
 
 **What it does:** Created whenever `report_output` is enabled (before the plot step). Content: (a) design summary: total SLST, and for "max. take-off with offtakes", "bucket point with offtakes" and "bucket point without offtakes" the thrust, fuel flow and TSFC; (b) list of installed engine models; (c) one table per engine (model, scale factor, SLST, engine mass `pointmass(Engine).mass`, bucket thrust, bucket TSFC); (d) only if `plot_output/enable` is true: the bucket-curve plot, the top view, and front and side views of every nacelle. Note that the engine table shows the engine mass only, not the nacelle or pylon mass.
 
-**Implemented by (software requirements):** `PropulsionDesign::create_html_report()`, `insert_summary() / insert_engine() / insert_nacelle() / insert_plots()`, `report::name_*()` (plot file names)
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::create_html_report()`, `insert_summary() / insert_engine() / insert_nacelle() / insert_plots()`, `report::name_*()` (plot file names)
+
+</details>
 
 **Why it is needed:** A readable report of the design results is needed for review and documentation.
 
@@ -2491,9 +2736,12 @@ $$F_j=\sum_{\text{engines}}F_e(N1_j),\qquad \dot w_{f,j}=\sum_{\text{engines}}\d
 
 The reported bucket point is the minimum of $TSFC_j$. Note that the report curve sums all engines at the same N1 index (as a grid), whereas the sizing-stage bucket point (Eq. 13) is searched per engine.
 
+</details>
+
 ---
 
-## 11. FR-11 — Configuration and technology factors
+<details id="fr-11">
+<summary><b>FR-11 — Configuration and technology factors</b></summary>
 
 **Statement.** The selected methods, technology factors, section profiles, engine models and user position shifts shall be configurable from `propulsion_design_conf.xml`. Several empirical constants remain compiled into the implementation (see the list below the table).
 **Src:** `propulsion_design_conf.xml`, `engine_design.h`, `mass/mass_analysis.h`, `integration/default/default_integration.h`
@@ -2502,7 +2750,7 @@ The reported bucket point is the minimum of $TSFC_j$. Note that the report curve
 
 
 <details>
-<summary><b>Software requirements</b> (functions implementing FR-11)</summary>
+<summary><b>Software requirements</b> (shared function descriptions for FR-11)</summary>
 
 <details>
 <summary><code>PropulsionDesign::select_engine_designer(), select_propulsion_integrator(), select_nacelle_designer(), select_pylon_designer(), select_mass_analyzer()</code></summary>
@@ -2561,170 +2809,235 @@ At construction the integrator reads `engine_at_kink` (FR-11.13) and validates `
 
 </details>
 
-<details>
+<details id="fr-11-1">
 <summary><b>FR-11.1</b> — `program_settings/method/{engine_designer, nacelle_designer, pylon_designer, propulsion_integrator, mass_analyzer}`</summary>
 
 **Used by:** FR-1.2
 
 **Default / limits:** `Rubber`, `Default` ×4
 
-**Implemented by (software requirements):** `PropulsionDesign::select_*() (five strategy selectors)`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::select_*() (five strategy selectors)`
+
+</details>
 
 **Why it is needed:** Configuration selects an implemented method for each stage; at present only Rubber (engine design) and Default (the other four stages) exist.
 
 </details>
 
-<details>
+<details id="fr-11-2">
 <summary><b>FR-11.2</b> — `program_settings/path_engine_database`</summary>
 
 **Used by:** FR-4.1, 4.2, 4.9
 
 **Default / limits:** `../databases/engines/`
 
-**Implemented by (software requirements):** `EngineDesigner::initialize()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `EngineDesigner::initialize()`
+
+</details>
 
 **Why it is needed:** The location of the engine database depends on the installation.
 
 </details>
 
-<details>
+<details id="fr-11-3">
 <summary><b>FR-11.3</b> — `program_settings/name_wing_engines`</summary>
 
 **Used by:** FR-6.2 (integrator) and FR-7.4/FR-7.5 (pylon designer); `select_fuselage()` and `select_vertical_tail()` do not use this setting
 
 **Default / limits:** `front_wing`
 
-**Implemented by (software requirements):** `integration::Default::select_wing()`, `pylon::Default::select_wing()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `integration::Default::select_wing()`, `pylon::Default::select_wing()`
+
+</details>
 
 **Why it is needed:** Aircraft with more than one wing need to say on which wing the engines are mounted.
 
 </details>
 
-<details>
+<details id="fr-11-4">
 <summary><b>FR-11.4</b> — `technology_factors/engine_mass` ($f_m$)</summary>
 
 **Used by:** FR-4.5, FR-8.1
 
 **Default / limits:** 1.0; ≥ 0
 
-**Implemented by (software requirements):** `EngineDesigner::initialize()`, `MassAnalyzer::initialize() / technology_factor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `EngineDesigner::initialize()`, `MassAnalyzer::initialize() / technology_factor()`
+
+</details>
 
 **Why it is needed:** Allows studies of lighter or heavier engines.
 
 </details>
 
-<details>
+<details id="fr-11-5">
 <summary><b>FR-11.5</b> — `technology_factors/nacelle_mass` ($f_n$)</summary>
 
 **Used by:** FR-8.3
 
 **Default / limits:** 1.0; ≥ 0
 
-**Implemented by (software requirements):** `MassAnalyzer::initialize() / technology_factor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `MassAnalyzer::initialize() / technology_factor()`
+
+</details>
 
 **Why it is needed:** Allows studies of lighter or heavier nacelles.
 
 </details>
 
-<details>
+<details id="fr-11-6">
 <summary><b>FR-11.6</b> — `technology_factors/pylon_mass` ($f_p$)</summary>
 
 **Used by:** FR-8.4
 
 **Default / limits:** 1.0; ≥ 0
 
-**Implemented by (software requirements):** `MassAnalyzer::initialize() / technology_factor()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `MassAnalyzer::initialize() / technology_factor()`
+
+</details>
 
 **Why it is needed:** Allows studies of lighter or heavier pylons.
 
 </details>
 
-<details>
+<details id="fr-11-7">
 <summary><b>FR-11.7</b> — `technology_factors/engine_efficiency` ($f_\eta$)</summary>
 
 **Used by:** FR-4.8
 
 **Default / limits:** 1.0; ≥ 0 (>1 = lower fuel flow)
 
-**Implemented by (software requirements):** `EngineDesigner::initialize()`, `Rubber::initialize()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `EngineDesigner::initialize()`, `Rubber::initialize()`
+
+</details>
 
 **Why it is needed:** Allows studies of more or less efficient engines.
 
 </details>
 
-<details>
+<details id="fr-11-8">
 <summary><b>FR-11.8</b> — `repositioning/engine_shifts/engine/{id, shift_x, shift_y, shift_z}`</summary>
 
 **Used by:** FR-6.8
 
 **Default / limits:** one entry, `id` 0, all shifts 0.0 m; no upper or lower boundaries are given in the file any more (the old ±5 m limits belonged to the removed `repositioning/shift_{x,y,z}`); ids are checked as described in §7.5
 
-**Implemented by (software requirements):** `validate_user_shift_configuration()`, `get_user_shift()`, `calculate_user_shift()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `validate_user_shift_configuration()`, `get_user_shift()`, `calculate_user_shift()`
+
+</details>
 
 **Why it is needed:** Allows a manual correction of the automatic position of individual engines.
 
 </details>
 
-<details>
+<details id="fr-11-9">
 <summary><b>FR-11.9</b> — `propulsion@ID/engine/Rubber/engine_model`</summary>
 
 **Used by:** FR-4.1
 
 **Default / limits:** `PW1127G-JM` (Default)
 
-**Implemented by (software requirements):** `Rubber::initialize()`, `Rubber::preselected_engine()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `Rubber::initialize()`, `Rubber::preselected_engine()`
+
+</details>
 
 **Why it is needed:** Allows the engine model to be fixed per engine or for all engines instead of automatic selection.
 
 </details>
 
-<details>
+<details id="fr-11-10">
 <summary><b>FR-11.10</b> — `propulsion@ID/nacelle/profile`</summary>
 
 **Used by:** FR-5.1
 
 **Default / limits:** `nacelle.dat`
 
-**Implemented by (software requirements):** `nacelle::Default::initialize()`, `nacelle::Default::get_section_shape()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `nacelle::Default::initialize()`, `nacelle::Default::get_section_shape()`
+
+</details>
 
 **Why it is needed:** Allows the nacelle cross-section to be chosen per engine or for all engines.
 
 </details>
 
-<details>
+<details id="fr-11-11">
 <summary><b>FR-11.11</b> — `propulsion@ID/pylon/profile`</summary>
 
 **Used by:** FR-7.3
 
 **Default / limits:** `pylon.dat`
 
-**Implemented by (software requirements):** `pylon::Default::initialize()`, `pylon::Default::get_section_profile()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `pylon::Default::initialize()`, `pylon::Default::get_section_profile()`
+
+</details>
 
 **Why it is needed:** Allows the pylon cross-section to be chosen per engine or for all engines.
 
 </details>
 
-<details>
+<details id="fr-11-12">
 <summary><b>FR-11.12</b> — `control_settings/{own_tool_level, console_output, log_file_output, report_output, xml_output, plot_output/*}`</summary>
 
 **Used by:** FR-1, FR-9, FR-10
 
 **Default / limits:** level 3; see file. Entries such as `aircraft_exchange_file_name/directory`, `log_file`, `tex_report`, `write_info_files`, `inkscape_path`, `gnuplot_path` and the plot-file copy/delete switches are not read in `src/`; they are handled by the shared `moduleBasics` runtime (not analysed here).
 
-**Implemented by (software requirements):** `PropulsionDesign::update()`, `PropulsionDesign::report()`, `PropulsionDesign::save()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `PropulsionDesign::update()`, `PropulsionDesign::report()`, `PropulsionDesign::save()`
+
+</details>
 
 **Why it is needed:** General run settings (tool level, logging, reports, plots) have to follow the conventions of the toolchain.
 
 </details>
 
-<details>
+<details id="fr-11-13">
 <summary><b>FR-11.13</b> — `program_settings/engine_at_kink`</summary>
 
 **Used by:** FR-6.10 (§7.7)
 
 **Default / limits:** `true` in the current config file; switch true/false
 
-**Implemented by (software requirements):** `find_kink_span_position()`, `integrate_into_wing() (turbofan)`, `integrate_into_wing_body()`
+<details>
+<summary><b>Software requirements</b></summary>
+
+**Implemented by:** `find_kink_span_position()`, `integrate_into_wing() (turbofan)`, `integrate_into_wing_body()`
+
+</details>
 
 **Why it is needed:** Makes the kink placement of FR-6.10 switchable.
 
@@ -2735,11 +3048,209 @@ At construction the integrator reads `engine_at_kink` (FR-11.13) and validates `
 
 `propulsion@ID`: an entry with `ID="Default"` sets the defaults, and an entry with a numeric ID overrides them for the propulsor with that ID. `nacelle/duct_type`, `Empirical/BPR` and `GasTurb` exist in the file but are not read by any code in `src/`.
 
+</details>
+
 ---
 
-## 12. Which functional requirement uses which function
+<details id="fr-12">
+<summary><b>FR-12 — Engine performance data access (library dependency)</b></summary>
 
-Each functional requirement has a **Software requirements** drop-down (§2 to §12) with the functions that implement it. Each sub-function (FR-n.m) names the functions it uses under **Implemented by**. The table below is the same relation read the other way round: for each function, the requirements that use it. Functions that appear under several requirements are shared.
+**Statement.** The propulsion module shall request performance at the operating points needed for sizing and reporting. Interpolation and offtake corrections are provided by `libs/engine`, not implemented by this module; they are dependencies to verify separately.
+
+**Src:** `engine_design/rubber/rubber_design.cpp`, `report/report_data.cpp`; dependency: `libs/engine/src/{engine,engine_data}.cpp`.
+
+<details id="fr-12-1">
+<summary><b>FR-12.1 — Request operating-point data</b></summary>
+
+**What it does:** Sizing and reporting evaluate an engine at selected Mach numbers, altitudes and N1 settings or ratings.
+
+**Implemented by:** `Rubber::calculate_bucket_point()`, `report::BucketCurve::from_engine_data()` and calls to `Engine::calculate_N1_with_penalties()`.
+
+**Why it is needed:** Engine thrust and fuel flow depend on the flight condition and operating point.
+
+<details><summary><b>Software requirements</b></summary>
+
+The module supplies the condition and requested offtakes; `Engine` evaluates the requested operating point.
+
+</details>
+</details>
+
+<details id="fr-12-2">
+<summary><b>FR-12.2 — Interpolated deck values</b></summary>
+
+**What it does:** The engine library obtains values between available performance-deck points.
+
+**Implemented by:** `EngineData::get_deck_value()` in `libs/engine`; the interpolation is not implemented in `propulsion_design/src`.
+
+**Why it is needed:** The requested flight and N1 conditions need not coincide with the deck grid.
+
+<details><summary><b>Software requirements</b></summary>
+
+Treat interpolation as an external-library contract, not as a propulsion-module algorithm or a propulsion-module unit-test result.
+
+</details>
+</details>
+
+<details id="fr-12-3">
+<summary><b>FR-12.3 — Offtake corrections</b></summary>
+
+**What it does:** The module passes bleed-air and shaft-power demands to the engine library, which adjusts the evaluated performance.
+
+**Implemented by:** `Rubber::calculate_bucket_point()`, `report::BucketCurve::from_engine_data()` and `Engine::calculate_offtake_correction()`.
+
+**Why it is needed:** Sizing and reporting should reflect the performance penalty of systems drawing air or power from the engine.
+
+<details><summary><b>Software requirements</b></summary>
+
+See FR-4.6 and the shaft-power unit inconsistency recorded as O-2; this subsection does not establish which unit is intended.
+
+</details>
+</details>
+
+</details>
+
+<details id="fr-13">
+<summary><b>FR-13 — Engine-data scaling (module rules and library dependencies)</b></summary>
+
+**Statement.** The module shall scale reference-engine thrust, dimensions and dry mass as described in FR-4.3–FR-4.5. Other scaled quantities below are provided by `libs/engine` and are recorded as dependencies, not additional module implementations.
+
+**Scaling rule:** for a base value $q_0$, scale factor $k$ and exponent $x$, $q=q_0 k^x$.
+
+<details id="fr-13-1">
+<summary><b>FR-13.1 — Quantities proportional to scale</b></summary>
+
+**What it does:** The engine library scales thrust, fuel flow, deck mass flow, maximum bleed and maximum shaft offtake linearly with $k$. Its LTO fuel-flow accessor also scales linearly, but the propulsion module does not use that accessor in its documented workflow.
+
+**Implemented by:** `Engine::{get_thrust, get_fuelflow, get_max_shaft_power_offtake_engine, get_LTO_fuelflow}()` and the mass-flow/bleed calculations in `libs/engine/src/engine.cpp`.
+
+**Why it is needed:** A scaled reference engine must produce performance consistent with its scale factor.
+
+<details><summary><b>Software requirements</b></summary>
+
+Module-level scale-factor selection is FR-4.3; these performance accessors belong to the engine library.
+
+</details>
+</details>
+
+<details id="fr-13-2">
+<summary><b>FR-13.2 — Dimensions and dry mass</b></summary>
+
+**What it does:** Height, width and diameter use $k^{0.5}$, length uses $k^{0.4}$, and dry mass uses $k^{1.1}$ before the mass technology factor (Eq. 8–9).
+
+**Implemented by:** `Rubber::operator()` for the supported engine types; equivalent library accessors are `Engine::get_engine_dimensions()` and `Engine::get_dry_mass()`.
+
+**Why it is needed:** Nacelle, placement, pylon and mass analysis need the dimensions and mass of the sized engine.
+
+<details><summary><b>Software requirements</b></summary>
+
+See FR-4.4, FR-4.5 and the duplicated-scaling observation O-12.
+
+</details>
+</details>
+
+<details id="fr-13-3">
+<summary><b>FR-13.3 — LTO emission indices</b></summary>
+
+**What it does:** The engine library returns its stored LTO emission indices without scaling them by $k$ (exponent 0). This module does not request or export those indices in the workflow described here.
+
+**Implemented by:** `Engine::get_LTO_emission_index()` in `libs/engine`.
+
+**Why it is needed:** This distinguishes an engine-library data rule from quantities that change with engine scale.
+
+<details><summary><b>Software requirements</b></summary>
+
+Library dependency only; it should not be counted as propulsion-module requirement coverage without a test that actually exercises it.
+
+</details>
+</details>
+
+<details id="fr-13-4">
+<summary><b>FR-13.4 — TSFC under proportional scaling</b></summary>
+
+**What it does:** If both thrust and fuel flow are multiplied by the same nonzero $k$ with no other correction changed, their ratio $TSFC=\dot w_f/F$ is unchanged.
+
+**Implemented by:** The proportional factors in `Engine::get_thrust()` and `Engine::get_fuelflow()`; this statement is limited to scaling alone, not changed offtakes or fuel properties.
+
+**Why it is needed:** It separates the effect of engine size from effects that change fuel efficiency.
+
+<details><summary><b>Software requirements</b></summary>
+
+This is a consequence of the scaling equations, not a separate operation performed by the module.
+
+</details>
+</details>
+
+</details>
+
+<details id="fr-14">
+<summary><b>FR-14 — Supported propulsion configurations</b></summary>
+
+**Statement.** The module shall create recognized propulsor and energy-carrier combinations and dispatch them only to design strategies with implemented overloads. A configuration accepted by an early stage may still be rejected by a later stage.
+
+**Src:** `utility.cpp`, `propulsion_strategy.h`, `integration/default/`, `pylon/default/`.
+
+| Propulsor / carrier | Current processing boundary |
+|---|---|
+| Turbofan / kerosene or liquid hydrogen | Sizing, nacelle, placement, pylon and mass strategies implemented. |
+| Open-rotor fan / kerosene | Strategies implemented, but the fuselage-top placement accepted by integration is rejected at the pylon stage when geometry exists (FR-7.2). |
+| Open-rotor fan / liquid hydrogen | Rejected during propulsor creation. |
+| Turboprop / kerosene or liquid hydrogen | Object can be created; design strategy overloads are not implemented and throw. |
+
+<details id="fr-14-1">
+<summary><b>FR-14.1 — Dispatch to implemented strategies</b></summary>
+
+**What it does:** `PropulsionDesign::run()` visits each typed propulsor and calls the five strategies in sequence. The base strategy rejects unimplemented type overloads.
+
+**Implemented by:** `PropulsionDesign::run()` and `PropulsionStrategy::operator()` overloads.
+
+**Why it is needed:** A propulsor should not silently pass through a stage that has no implementation for its type.
+
+<details><summary><b>Software requirements</b></summary>
+
+See FR-1.3 for the dispatch order and FR-6.1/FR-7.2 for placement-specific support checks.
+
+</details>
+</details>
+
+<details id="fr-14-2">
+<summary><b>FR-14.2 — Reject unsupported combinations</b></summary>
+
+**What it does:** Propulsor creation rejects unknown types, carriers and unsupported combinations; individual strategies reject unsupported positions or types when reached.
+
+**Implemented by:** `utility::create_engine()`, `PropulsionStrategy` defaults and the integration/pylon support checks.
+
+**Why it is needed:** Unsupported designs must fail visibly instead of yielding incomplete results.
+
+<details><summary><b>Software requirements</b></summary>
+
+See FR-2.2, FR-6.1 and FR-7.2 for the stage-specific behaviour.
+
+</details>
+</details>
+
+<details id="fr-14-3">
+<summary><b>FR-14.3 — Diagnostic context</b></summary>
+
+**What it does:** A rejecting function reports its own error message. These messages do not consistently include both a propulsor ID and a design-stage name.
+
+**Implemented by:** Error paths in `utility::create_engine()` and the selected strategy methods; `Module::execute()` reports lifecycle failures (FR-1.7).
+
+**Why it is needed:** The user needs to identify why a requested configuration could not be designed.
+
+<details><summary><b>Software requirements</b></summary>
+
+Treat richer ID/stage diagnostics as a possible improvement, not as behaviour already guaranteed by the current code.
+
+</details>
+</details>
+
+</details>
+
+---
+
+## Which functional requirement uses which function
+
+Each sub-function (FR-n.m) names the functions it uses under **Implemented by**. FR-2–FR-11 also retain shared function descriptions. The table below shows the relation in the other direction: for each function, the requirements that use it. Functions that appear under several requirements are shared; library dependencies are identified separately.
 
 | Function | FR | Sub-functions that use it |
 |---|---|---|
@@ -2861,6 +3372,13 @@ Each functional requirement has a **Software requirements** drop-down (§2 to §
 | `report::generate_data() / update_report_data()` | FR-10 | FR-10.2 |
 | `EngineDesigner::initialize()` | FR-11 | FR-11.2, FR-11.4, FR-11.7 |
 | `integration::Default::select_wing()` | FR-11 | FR-11.3 |
+| `Rubber::calculate_bucket_point() / BucketCurve::from_engine_data()` | FR-12 | FR-12.1, FR-12.3 |
+| `EngineData::get_deck_value()` (engine library) | FR-12 dependency | FR-12.2 |
+| `Engine::get_thrust() / get_fuelflow()` (engine library) | FR-13 dependency | FR-13.1, FR-13.4 |
+| `Engine::get_engine_dimensions() / get_dry_mass()` (engine library) | FR-13 dependency | FR-13.2 |
+| `Engine::get_LTO_fuelflow() / get_LTO_emission_index()` (engine library) | FR-13 dependency | FR-13.1, FR-13.3 |
+| `PropulsionDesign::run() / PropulsionStrategy` | FR-14 | FR-14.1, FR-14.2 |
+| `utility::create_engine()` | FR-14 | FR-14.2, FR-14.3 |
 
 **Related functions that exist but are not called by the described workflow** (not listed under "Implemented by"):
 
@@ -2870,19 +3388,19 @@ Each functional requirement has a **Software requirements** drop-down (§2 to §
 | `Engine::get_dry_mass()` | Raymer scaling of the dry mass (Eq. 9, without technology factor) inside the engine library. Not called by this module (⚠ O-12). |
 | `EngineDesigner::generate_empty_deck_data()` | Creates an empty deck filled with -9999. Declared and defined, but not called in `src/`. |
 | `operator+(Offtakes, Offtakes)` | Adds two offtake values. Defined, but not called in `src/` (`operator*(double, Offtakes)` is called by `create_engine`). |
-| `io::AircraftXMLv3::insert(Turboprop<…>)` | Exists, but is not reached, because every design strategy rejects turboprops before `update()` (§1.1). |
+| `io::AircraftXMLv3::insert(Turboprop<…>)` | Exists, but is not reached, because every design strategy rejects turboprops before `update()` (FR-14). |
 | `Turbofan::bypass_ratio()` / `set_bypass_ratio()`, `struct Propeller` | Declared in `propulsion.h`, but not set or read anywhere in `src/`. |
 
 ---
 
-## 13. Future work
+## Future work
 
 The following code observations are recorded as candidate maintenance or future-work items. They are separate from the functional requirements and identify the affected code and potential impact.
 
 | # | Observation | Where | Effect |
 |---|---|---|---|
 | **O-1** | The nacelle and pylon inertia comes from `geom2::measure::inertia`, which (per its own documentation) assumes a **thin-walled surface of unit density and unit thickness**, returns **m⁴**, and "needs to be scaled by wall thickness and density". The module does not scale it and does not use $m_{nac}$ or $m_{pyl}$. It is written into the XML as kg·m². | `mass/default/turbofan.cpp` (`calculate_nacelle_inertia`, `calculate_pylon_inertia`); `libraries/aircraftGeometry2/.../measure.h` | The nacelle and pylon inertia values are not physical moments of inertia and do not follow the component mass. |
-| **O-2** | The shaft-power offtake is passed to the engine library as `shaft_power / 1000` in `Rubber::calculate_bucket_point`, but unchanged (`offtakes.shaft_power`) in the report-data generation. `Offtakes::shaft_power` is documented as W, and the engine library documents `shaft_power_offtake` as [W] as well. | `rubber_design.cpp`; `report/report_data.cpp` | The bucket point stored in the XML and the bucket curve in the report use different shaft-power units. Since the library documents W, the division by 1000 in the bucket-point search looks like the inconsistent one; this should be confirmed by the maintainers. |
+| **O-2** | The shaft-power offtake is passed to the engine library as `shaft_power / 1000` in `Rubber::calculate_bucket_point`, but unchanged (`offtakes.shaft_power`) in the report-data generation. `Offtakes::shaft_power` is documented as W, and the engine library documents `shaft_power_offtake` as [W] as well. | `rubber_design.cpp`; `report/report_data.cpp` | The bucket point stored in the XML and the bucket curve in the report use different shaft-power units. Since the library documents W, the division by 1000 in the bucket-point search looks like the inconsistent one; this should be confirmed by the maintainers. **Resolved by the unit tests:** `EngineData::max_shaft_power_extraction()` converts the deck maximum (`Unit="kW"`) to W and `check_offtake_boundaries()` compares it with the passed value, so the library works in W throughout. The report side is consistent (`ReportData.ShaftPowerOfftakePassedInWatt` passes: fuel-flow ratio 1 + 100 000 W · c_sh / T = 1.0086, no boundary warning); the division by 1000 in `Rubber` is the inconsistency (`RubberDesign.BucketPointWithShaftPowerOfftake` fails: bucket TSFC 1.39528e-5 instead of 1.40971e-5 (kg/s)/N). Fix: pass `shaft_power` without `/ 1000` in `rubber_design.cpp` (lines 195 and 210). |
 | **O-3** | The open-rotor tip-Mach check is done on `engine_unscaled` (scale 1) and therefore on the unscaled fan diameter ($D_0$), not on the sized engine. | `rubber/openrotorfan.cpp` | The warning threshold (1.2) is compared to a number that is independent of the sizing result. |
 | **O-4** | `Rubber` passes the design atmosphere, which includes the mission $\Delta ISA$, to `calculate_N1_with_penalties` when it computes the reference thrust $T_{ref}$ (Eq. 7), although a sea-level static reference would normally be ISA. In the engine library the atmosphere only enters `N_correction_`, `W_correction_` and `T_correction_`; `W_correction_` is used only for the core mass flow in the bleed correction, `T_correction_` only for the St5 temperature. With zero offtakes, `thrust_correction_bleed_` is 1 and the deck thrust is independent of the atmosphere, so $k$ is not changed by $\Delta ISA$. (An earlier version of this table said that $k$ changes with $\Delta ISA$; that was wrong.) | `rubber/turbofan.cpp`; `libs/engine/src/engine.cpp` (`set_correction_factors`, `calculate_offtake_correction`) | No effect on the scale factor at present. The atmosphere does matter in the bucket-point calculation, where it enters the bleed correction (FR-4.7). |
 | **O-5** | (Superseded by commit `dc80519b`.) The old global user shift `repositioning/shift_{x,y,z}` was replaced by per-slot shifts; see §7.5, O-26 and O-27. | – | – |
@@ -2901,20 +3419,31 @@ The following code observations are recorded as candidate maintenance or future-
 | **O-18** | Open-rotor pylon section origins combine size-dependent terms ($0.3L$ and $h/6$ for the root, chords $L/2$ and $0.4L$) with fixed metre offsets that are not scaled with the engine (−0.5, −0.8, −1.0, −0.7 m), and use the engine's global Y coordinate as a vector component (`engine.position().y() * 0.5`). Offsets are only set for the parents Wing and Fuselage; for other parents the pair stays default-constructed, which in CGAL is the null vector. | `pylon/default/openrotorfan.cpp` | Part of the open-rotor pylon geometry does not scale with engine size and depends on the absolute lateral engine position; not covered by tests. |
 | **O-19** | The engine library can rescale the deck fuel flow by the lower heating value of the actual fuel (`Engine::set_actual_gravimetric_energy_density`, needs `Deck/ReferenceEnergyCarrier` in the engine XML, as in `CROR.xml`). This module never calls it. | `libs/engine/src/engine.cpp` (`lhv_rescale_factor`); no call in `propulsion_design/src` | Matters for `SAF-HEFA-SPK`: its LHV in `energy_carrier.xml` is 44.128 MJ/kg against 43.1 MJ/kg for kerosene (about 2.4 % higher), but it is sized and its bucket point computed with the unscaled kerosene deck. `liquid_hydrogen` and `liquid_hydrogen_green` currently have the same LHV (120 MJ/kg), so for green LH₂ the omission makes no numerical difference at present. |
 | **O-20** | `Engine::get_tip_mach` multiplies the N1 rotation speed by `gearbox_ratio`. For `CROR` the data give N1 nominal 7000 rpm, gearbox ratio 8, propeller diameter 3.25 m, cruise rating N = 0.875. Hand calculation with the formula as written gives a relative tip Mach of about 28 at 35 000 ft (rotor speed 817 rps), i.e. the 1.2 limit would always be exceeded; if the ratio were a speed reduction (division), it would be about 0.9. | `libs/engine/src/engine.cpp`; `engines/CROR/CROR.xml` | The convention of the gearbox ratio needs to be confirmed; with the multiplication the tip-speed message is expected to appear for every CROR design. The number is a hand calculation from the data, not a program run. |
-| **O-21** | The propulsor ordering (FR-2.4) does not guarantee left-first, descending-thrust order, and the restoring loop in `PropulsionDesign::update()` is not guaranteed to restore the input order. Exhaustive simulation of a Python port over 144 four-engine cases: 83.3 % left-first, 83.3 % descending per side, 86.1 % restored; all equal-thrust four-engine arrangements restored, 17/20 for six equal-thrust engines. | `propulsion_design.cpp` (`sort_propulsors`, `update`) | Mainly the order of nodes in the output; the inner/outer assignment of wing engines depends on the processing order. |
+| **O-21** | The propulsor ordering (FR-2.4) does not guarantee left-first, descending-thrust order, and the restoring loop in `PropulsionDesign::update()` is not guaranteed to restore the input order. Exhaustive simulation of a Python port over 144 four-engine cases: 83.3 % left-first, 83.3 % descending per side, 86.1 % restored; all equal-thrust four-engine arrangements restored, 17/20 for six equal-thrust engines. | `propulsion_design.cpp` (`sort_propulsors`, `update`) | Mainly the order of nodes in the output; the inner/outer assignment of wing engines depends on the processing order. Shown by `PropulsionDesignInputs.MixedOrderWingEnginesRestoredToInputOrder` and `…LargerWingEngineIsPlacedInboardWhenListedSecond` (both fail; the larger engine listed second is placed outboard, 10.81 m from the center line instead of 5.32 m). With the result nodes of all IDs already present, the same mixed order is written correctly (`…MixedOrderWingEnginesWrittenToExistingResultNodes` passes), so the remaining restore failure is tied to the creation order of the result nodes (O-39). |
 | **O-22** | `PropulsionDesign::create_plots()` calls `plot::top_overview()` unconditionally, and that function dereferences `aircraft` and reads `wings[0]` and `fuselages[0]` without checks. With plotting enabled and no aircraft geometry (FR-2.1 fallback), this is a null-pointer access (source trace, not run). | `report/create_plots.cpp` | A run without geometry and with `plot_output/enable` = true is expected to crash in the report step. The top view (FR-10.4) therefore silently assumes at least one wing and one fuselage; nothing checks this. Possible handling: skip the top view or stop with a clear error when the geometry is missing. |
 | **O-23** | `plot::top_overview()` calls `detail::apply_offset()`, which moves the origins of the shared aircraft geometry in place and does not move them back. | `report/create_plots.cpp` | No effect on the exported results, because the XML data are written in `update()` before `report()`; any later use of the geometry in the same run would see shifted origins. |
 | **O-24** (candidate) | `Propulsion::swap()` exchanges all members except `engine_geom_` (the engine stub of FR-5.5), and the move constructor and move assignment are implemented through `swap()`. When `update()` reorders the engines after the nacelle stage (FR-2.4), the engine stub therefore stays in its slot instead of following its engine; when the two swapped engines are of different types (variant alternatives), the moved object starts with an empty stub. The reordering in `initialize()` happens before the stubs exist and is not affected. | `propulsion.h` (`swap`, move constructor/assignment) | Nacelle front/side views and the top view can pair a nacelle with another engine's stub (or with an empty stub, whose `sections[0]` is then read by `nacelle_front`). Only drawings are affected; the exported XML does not contain the stub. To be confirmed by a test that reorders engines and checks that each engine stub stays with its engine ID. |
-| **O-25** | `check_validity()` now computes $\vec M=\vec r\times(T,0,0)$ per engine but compares only $M_x$, which is always 0, against 10 N·m; the error message prints $M_y$. The lateral thrust-symmetry check is therefore never triggered. The previous check corresponded to $M_z$ (yaw). | `propulsion_design.cpp` (`check_validity`) | Asymmetric engine layouts (for example O-28, O-29) pass validation unnoticed. |
+| **O-25** | `check_validity()` now computes $\vec M=\vec r\times(T,0,0)$ per engine but compares only $M_x$, which is always 0, against 10 N·m; the error message prints $M_y$. The lateral thrust-symmetry check is therefore never triggered. The previous check corresponded to $M_z$ (yaw). | `propulsion_design.cpp` (`check_validity`) | Asymmetric engine layouts (for example O-28, O-29) pass validation unnoticed. Shown by `PropulsionDesignValidity.AsymmetricThrustRejectedAfterRun` (fails: an asymmetric layout passes `run()` without the "Non-symmetrical thrust" error). |
 | **O-26** | The user shift is added in the frame in which a position is computed. Only in the wing-local frame does that match the configuration description (X aft, Y vertical, Z lateral). For fuselage placements $s_x$ acts sideways and $s_z$ along the fuselage; for turbofan empennage placements $s_y$ acts sideways and $s_z$ vertically. Turbofan fuselage and empennage placements use the engine ID as slot index, the other placements the slot of FR-6.7; open-rotor empennage engines get no shift. `max_shift_ids()` follows the wing count when engines exist on both wing and fuselage. | `integration/default/*.cpp` | A configured shift can move an engine in a different direction, or apply to a different engine, than the description suggests. |
 | **O-27** | The header still initialises `usershift_x/y/z` from `repositioning/shift_{x,y,z}/value`, which no longer exist at that path. Because `aixml::node::at()` searches descendants, the lookup currently resolves to the first `engine_shifts/engine/shift_*` entry; the members are not used. If `engine_shifts` is removed from the configuration, these lookups would fail when the integrator is created. | `integration/default/default_integration.h` | Dead code with a hidden dependency on the configuration layout. |
-| **O-28** | For fuselage-mounted engines (turbofan and open-rotor, both side and top placements) a left engine is now mirrored in the fuselage-local Z coordinate (length) instead of X (width). Both engines are then on the same side of the fuselage, the left one at the mirrored length station. | `integration/default/turbofan.cpp` (`integrate_into_fuselage`), `openrotorfan.cpp` (`integrate_into_fuselage`, `integrate_into_fuselage_top`) | Likely regression from `dc80519b`, confirmed by the rerun: in `IntegrateTurbofanKeroseneTwoEnginesMidFuselage` the right engine is at (1.6, 1.125, 0.25) m and the left engine at (−1.6, 1.125, …) m, i.e. on the same side and mirrored along the fuselage (the test expects (1.6, −1.125, 0.25) m). Not caught by FR-3.4 (O-25). |
-| **O-29** | Two wing-body engines: the span coordinate is negated for the second engine processed and, since `dc80519b`, additionally mirrored for every left engine. For one of the two engines the flips cancel, so both are placed on the same side. | `integration/default/turbofan.cpp` (`integrate_into_wing_body`) | Likely regression from `dc80519b`; not caught by FR-3.4 (O-25). |
-| **O-30** | `validate_user_shift_configuration()` rejects the shipped configuration (one entry with `id` 0) whenever `max_shift_ids()` is 0, i.e. for $N_w=1$ (one wing-body engine) or when no engines are counted, and throws in the integrator constructor. The error message underflows the upper bound (`max_allowed - 1` with `max_allowed` = 0). Confirmed by the rerun: `IntegrateTurbofanKeroseneUnsupported` and `...NoAircraftGeometry` (integrator built with zero engine counts) now fail with this exception. | `integration/default/default_integration.cpp` | The single wing-body engine layout of §7.4 step 3 cannot be run with the default configuration. |
+| **O-28** | For fuselage-mounted engines (turbofan and open-rotor, both side and top placements) a left engine is now mirrored in the fuselage-local Z coordinate (length) instead of X (width). Both engines are then on the same side of the fuselage, the left one at the mirrored length station. | `integration/default/turbofan.cpp` (`integrate_into_fuselage`), `openrotorfan.cpp` (`integrate_into_fuselage`, `integrate_into_fuselage_top`) | Likely regression from `dc80519b`, confirmed by the rerun: in `IntegrateTurbofanKeroseneTwoEnginesMidFuselage` the right engine is at (1.6, 1.125, 0.25) m and the left engine at (−1.6, 1.125, …) m, i.e. on the same side and mirrored along the fuselage (the test expects (1.6, −1.125, 0.25) m). Not caught by FR-3.4 (O-25). Also shown for open rotors by `IntegrationRules.OpenRotorFuselageMid` and `…OpenRotorFuselageTopLeftEngineMirrored` (both fail: the left top engine is at (−1.8, 0.9, 1.1) m instead of (1.8, −0.9, 1.1) m). |
+| **O-29** | Two wing-body engines: the span coordinate is negated for the second engine processed and, since `dc80519b`, additionally mirrored for every left engine. For one of the two engines the flips cancel, so both are placed on the same side. | `integration/default/turbofan.cpp` (`integrate_into_wing_body`) | Likely regression from `dc80519b`; not caught by FR-3.4 (O-25). Shown by `IntegrationRules.WingBodyTwoEnginesOnBothSides`, `…WingBodyTwoEnginesOutboardOfHorizontalTail`, `…WingBodyEngineAtKink` and `…WingBodyKinkWithoutClearanceFallsBackToDefaultSpan` (all fail on the engine processed first, e.g. the right engine at y = −0.8712 m and x = 3.0 m instead of (4.278, 0.8712) m; the engine processed second is placed correctly). The kink and the kink fallback (FR-6.10) are therefore verified only on the second engine. |
+| **O-30** | `validate_user_shift_configuration()` rejects the shipped configuration (one entry with `id` 0) whenever `max_shift_ids()` is 0, i.e. for $N_w=1$ (one wing-body engine) or when no engines are counted, and throws in the integrator constructor. The error message underflows the upper bound (`max_allowed - 1` with `max_allowed` = 0). Confirmed by the rerun: `IntegrateTurbofanKeroseneUnsupported` and `...NoAircraftGeometry` (integrator built with zero engine counts) now fail with this exception. | `integration/default/default_integration.cpp` | The single wing-body engine layout of §7.4 step 3 cannot be run with the default configuration. Also shown by `IntegrationRules.WingBodySingleEngineWithConfiguredShiftEntry` (fails); `…NoEnginesRejectShiftEntry` records the same rejection for an integrator without engines. |
+| **O-31** | `create_xml_report()` copies value end nodes with `static_cast<std::string>(node)`. For a node of type `DOUBLE`, aixml returns the original file text (`undefinedValue`), which is empty for values written in memory by `update()` in the same run (`report()` runs before `save()`). Confirmed by `PropulsionDesignLifecycle.ReportXmlContainsDesignResults`. | `report/create_xml_report.cpp:109`; `libs/aixml/src/node.cpp` (`operator std::string`) | `propulsion_design_results.xml` contains the structure and units of the results, but every numeric value is empty. |
+| **O-32** | ΔISA (FR-2.6) is built into the design atmosphere (T₀ + ΔISA), but the engine library uses the resulting correction factors only in the mass flow of the bleed-air correction. `get_thrust()`, `get_fuelflow()` and the N1 limits read the deck uncorrected. Without bleed air the bucket point is identical at every ΔISA; with 0.5 kg/s bleed air it changes. Shown by `PropulsionDesignInputs.DeltaIsaWithoutOfftakesLeavesBucketPointUnchanged` and `…DeltaIsaWithBleedAirChangesBucketPoint`. In addition, the reference aircraft file describes the longitudinal tag as "front / back", but `get_parent_component()` accepts only `front` / `rear`. | `propulsion_design.cpp` (`get_design_condition`); `libraries/engine/src/engine.cpp` (`set_correction_factors`, `calculate_offtake_correction`, `get_thrust`, `get_fuelflow`); `utility.cpp` | The temperature offset has almost no influence on the bucket point; an aircraft file written with `back` is rejected. |
+| **O-33** | The engine library reads the gearbox ratio from `Deck/Gearbox_Ratio`, but `engines/CROR/CROR.xml` stores it as `Properties/Gearbox_ratio/value`. A missing node is read as 0 without a message, so for CROR the rotational part of the tip Mach number is 0 and the tip Mach number equals the flight Mach number. Shown by `RubberDesign.OpenRotorGearboxRatioOfDatabaseEngineIsUsed` (fails); with the ratio at the path the library reads, `…OpenRotorTipSpeedMessageWithGearboxRatioAtLibraryPath` shows the message. | `libs/engine/src/engine_data.cpp` (path map); `engines/CROR/CROR.xml` | The FR-4.10 tip-speed message never appears for the repository's CROR below Mach 1.2; the hand calculation of O-20 applies only once the ratio is read. |
+| **O-34** | `get_section_shape()` reads an existing `.dat` profile with `geom2::io::read_dat_file()`, which throws only when the file cannot be opened and silently skips lines without two numbers. A profile file without coordinates therefore gives a nacelle whose sections have no points, without any error or warning. Shown by `NacelleDefault.ProfileFileWithoutCoordinatesGivesEmptySections`. | `nacelle/default/default_nacelle.cpp`; `libs/aircraftGeometry2/src/io/dat.cpp` | A damaged or empty profile file produces an empty nacelle geometry that later steps (placement, pylon, plots) use without notice. |
+| **O-35** | The technology factors `engine_mass`, `nacelle_mass`, `pylon_mass` and `engine_efficiency` are read with a plain `at()` and are not checked against the `lower_boundary` 0.0 given in `propulsion_design_conf.xml`. A negative factor is accepted without error or warning. Shown by `PropulsionDesignConfiguration.NegativeTechnologyFactorAccepted` (current behaviour: `nacelle_mass` = −1 gives a negative nacelle mass in the aircraft file). | `engine_design/engine_design.h`, `mass/mass_analysis.h` (`initialize`) | Physically impossible masses (and efficiency factors) reach the aircraft exchange file unnoticed. A range check on reading, or using `EndnodeReadOnly` with boundaries, would catch them. |
+| **O-36** | The method selectors are compared case-sensitively (`"Rubber"`, `"Default"`), and the description of `method/engine_designer` lists `Empirical / Rubber / GasTurb` although only `Rubber` is implemented. Shown by `PropulsionDesignConfiguration.InitializeRejectsEmpiricalEngineDesigner`, `…InitializeRejectsGasTurbEngineDesigner` and `…MethodNamesAreCaseSensitive` (`default` is rejected). The `Empirical` and `GasTurb` entries of `propulsion@Default/engine` are not read. | `propulsion_design.cpp` (`select_*`); `propulsion_design_conf.xml` | The configuration file advertises options that stop the run at initialization. The description should list only implemented methods. |
+| **O-37** | The wing capacity check `slot_index_on_side >= max_slots_per_side()` can never trigger: `slot_index_on_side()` returns `engines_done.wing % max_shift_ids()`, which is always below `max_slots_per_side()`. A third engine on a wing configured for two engines is therefore placed again at the slot-0 position without an error. The "No space on the wing" branches of the turbofan wing placement and of the open-rotor in-wing placement were never executed in the coverage run. Shown by `IntegrationDefault.IntegrateTurbofanKeroseneWingRejectsExtraEngine` (fails: no exception). | `integration/default/default_integration.cpp` (`slot_index_on_side`); `turbofan.cpp`, `openrotorfan.cpp` (capacity checks) | More wing engines than configured are accepted and overlap. The modulo hides the overflow; the check needs the unwrapped count. |
+| **O-38** | Further defensive branches are unreachable with the current control flow (found by the OpenCppCoverage run, 94.7 % line coverage without profile data): the unsupported-count `default` of the open-rotor in-wing placement (`max_slots_per_side()` throws first); the invalid-count throws at the end of `calculate_span_position*` (the callers' `switch` rejects the count first); the id read, numeric and range errors in `get_user_shift()` and the "too many shift entries" check (the constructor's `validate_user_shift_configuration()` rejects these first); the `default` parent throws of the integrator (rejected earlier in `*_method`); and the `exit(EXIT_FAILURE)` paths in `Rubber::initialize()` / `save()`, because `EngineData::set_engine_efficiency_factor()` ignores the result of `set_value()` and does not throw. | `integration/default/*.cpp`, `default_integration.cpp`, `rubber_design.cpp` | Dead error handling that cannot be tested and suggests checks that do not take effect. Either remove it or move the checks to where they can trigger. |
+| **O-39** | `io::AircraftXMLv3::insert()` writes `specific/propulsion@<ID>` through `aixml` `operator[]("propulsion@N")`, which throws `std::out_of_range` unless the IDs are created in ascending order (`libs/aixml/src/node.cpp:1018`). Inserting engine 1 before engine 0 into a file without result nodes therefore fails; with existing result nodes any order works. Shown by `AircraftXMLData.EnginesWrittenInAnyIdOrder` (fails; open question, FR-9 as written does not require an arbitrary order). | `io/aircraft_xml.cpp`; `libs/aixml/src/node.cpp` | Together with O-21: if `update()` does not restore the input order, the result nodes of a fresh aircraft file cannot be created out of order. |
+| **O-40** | The engine library's own unit-test target does not build: `libs/engine/test/CMakeLists.txt` compiles the library sources again but does not link `UnicadoLibs::energyCarriers`, while `engine.cpp` includes `<energyCarriers/energyCarriers.h>` (`fatal error: 'energyCarriers/energyCarriers.h' file not found`). The interpolation tests in `test_engine_deck.cpp` and `test_engine_data.cpp` therefore cannot be run. | `libs/engine/test/CMakeLists.txt` | FR-12.2 (deck interpolation) is not verified by any test that currently runs; the propulsion tests use the library but do not check its interpolation. Fix: add `UnicadoLibs::energyCarriers` to `target_link_libraries`; the test binary may then also need `energy_carrier.xml` next to it, as the propulsion test target has. |
+| **O-41** | `utility::to_energy_carrier()` loads `energy_carrier.xml` from `../databases/general_data/` relative to the **current working directory**, although the CMake comment of the test target states that the path is relative to the executable. Started from another directory, the test binary stops with "Could not open ../databases/general_data/energy_carrier.xml" in the first test that creates a propulsor. | `utility.cpp`; `libs/energyCarriers`; `test/CMakeLists.txt` (POST_BUILD copy) | The module and its tests only work when started from the expected directory (for the tests: `build/propulsion_design/test`). |
 
 ---
 
-## 14. Traceability: requirement → code
+## Traceability: requirement → code
 
 | Requirement | Primary code |
 |---|---|
@@ -2929,6 +3458,9 @@ The following code observations are recorded as candidate maintenance or future-
 | FR-9 | `io::AircraftXMLv3::{insert, insert_propulsion, insert_point_mass, insert_bucket_point}` |
 | FR-10 | `PropulsionDesign::{create_xml_report, create_html_report, create_plots}`, `report::{generate_data, BucketCurve}` |
 | FR-11 | `propulsion_design_conf.xml`, `EngineDesigner::initialize`, `MassAnalyzer::initialize`, `integration::Default` members |
+| FR-12 | `Rubber::calculate_bucket_point`, `report::BucketCurve::from_engine_data`; engine-library dependency: `EngineData::get_deck_value`, `Engine::calculate_offtake_correction` |
+| FR-13 | `Rubber::operator()` for module sizing; engine-library scaling/accessor functions for LTO and other library-only quantities |
+| FR-14 | `utility::create_engine`, `PropulsionDesign::run`, `PropulsionStrategy` defaults, integration and pylon support checks |
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
